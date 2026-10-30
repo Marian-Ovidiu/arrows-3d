@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "Svela — un piccolo puzzle spaziale",
+  "short_name": "Svela",
+  "description": "Ruota, osserva, libera. Un piccolo puzzle 3D con una sorpresa al centro.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f3ec",
+  "theme_color": "#f5f3ec",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+.DS_Store
+qa/*.png
+.android-cache/
+.android-sdk/
+test-results/
+playwright-report/
+*.jks
+*.keystore
+artifacts/android/*.apk

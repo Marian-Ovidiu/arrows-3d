@@ -1,0 +1,20 @@
+{
+  "artifact": "svela-0.1.0-debug.apk",
+  "bytes": 4576656,
+  "sha256": "3b58ee4c789f0eab86718179306412fd23a43cf9e581f6862e4915836a15e879",
+  "applicationId": "com.svela.puzzle",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "minSdk": 24,
+  "targetSdk": 36,
+  "signature": "debug; APK signature v2 verified",
+  "unitTestsPassed": 12,
+  "headlessBrowserTestsPassed": 5,
+  "nativeBuild": "assembleDebug successful",
+  "deviceRuntimeTested": false,
+  "externalGameResources": false,
+  "nativePlugins": [
+    "@capacitor/app",
+    "@capacitor/preferences"
+  ]
+}

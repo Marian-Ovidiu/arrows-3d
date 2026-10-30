@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="svela_paper">#F5F3EC</color>
+    <color name="colorPrimary">#AD4D34</color>
+    <color name="colorPrimaryDark">#F5F3EC</color>
+    <color name="colorAccent">#AD4D34</color>
+</resources>
