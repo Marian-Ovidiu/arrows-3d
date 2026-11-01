@@ -1,4 +1,4 @@
-import { createSaveState, parseSaveState, type SaveState } from './save-state.ts';
+import { createSaveState, parseSaveState, type SaveState, MAX_SAVE_BYTES } from './save-state.ts';
 
 export const GUEST_KEY = 'svela-save-v1';
 export const ACCOUNT_PREFIX = 'svela-account-v1:';
@@ -12,13 +12,13 @@ export function readGuest(store: KeyValueStore): SaveState {
     const raw = store.getItem(GUEST_KEY);
     if (raw !== null) return parseSaveState(raw);
     const completed: unknown = JSON.parse(store.getItem('svela-completed') ?? '[]');
-    return parseSaveState(JSON.stringify({ ...createSaveState(), completed }));
+    return parseSaveState(JSON.stringify({ version: 1, activeLevel: 3, completed, levels: {}, tutorial: {} }));
   } catch { return createSaveState(); }
 }
 export function readAccount(store: KeyValueStore, id: string): AccountCache | null {
   try {
     const raw = store.getItem(accountKey(id));
-    if (!raw || raw.length > 110_000) return null;
+    if (!raw || raw.length > MAX_SAVE_BYTES + 10_000) return null;
     const value = JSON.parse(raw);
     if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.dirty !== 'boolean') return null;
     return { save: cleanSave(value.save), revision: value.revision, dirty: value.dirty, editId: typeof value.editId === 'string' ? value.editId : '' };

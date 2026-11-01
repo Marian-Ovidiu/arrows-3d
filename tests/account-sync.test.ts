@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AccountSync, AccountRemoteError, type CloudProgress, type ProgressBackend } from '../src/account-sync.ts';
 import { accountKey, GUEST_KEY, readAccount, type KeyValueStore } from '../src/account-store.ts';
+import { LEVELS } from '../src/puzzle.ts';
 import { createSaveState, type SaveState } from '../src/save-state.ts';
 
 class MemoryStore implements KeyValueStore {
@@ -10,7 +11,8 @@ class MemoryStore implements KeyValueStore {
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
 }
-function save(activeLevel: number): SaveState { return { ...createSaveState(), activeLevel }; }
+const levelKey = (index: number): string => LEVELS[index].key;
+function save(index: number): SaveState { return { ...createSaveState(), activeLevel: levelKey(index) }; }
 const user = (id: string) => ({ id, email: `${id}@test.invalid`, name: id });
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -52,26 +54,26 @@ test('cloud is canonical at first login; guest import is explicit and users are 
   engine.saveLocal(save(2));
   backend.record = { save: save(3), revision: 8 };
   await engine.setUser(user('a'));
-  assert.equal(engine.save.activeLevel, 3);
+  assert.equal(engine.save.activeLevel, levelKey(3));
   assert.equal(engine.state.guestImportAvailable, true);
   assert.equal(backend.writes.length, 0);
   await engine.importGuest();
-  assert.equal(engine.save.activeLevel, 2);
+  assert.equal(engine.save.activeLevel, levelKey(2));
   assert.equal(backend.writes[0].revision, 8);
   await engine.setUser(null);
-  assert.equal(engine.save.activeLevel, 2);
+  assert.equal(engine.save.activeLevel, levelKey(2));
   backend.record = null;
   await engine.setUser(user('b'));
   assert.deepEqual(engine.save, createSaveState());
-  assert.equal(readAccount(store, 'a')?.save.activeLevel, 2);
+  assert.equal(readAccount(store, 'a')?.save.activeLevel, levelKey(2));
   assert.equal(readAccount(store, 'b'), null);
-  assert.equal(JSON.parse(store.getItem(GUEST_KEY)!).activeLevel, 2);
+  assert.equal(JSON.parse(store.getItem(GUEST_KEY)!).activeLevel, levelKey(2));
   engine.suspend();
 });
 
 test('offline outbox survives restart, retries, and preserves full reset instead of merging maxima', async () => {
   const { store, backend, engine } = setup();
-  backend.record = { save: { ...save(4), completed: [1, 2] }, revision: 4 };
+  backend.record = { save: { ...save(4), completed: [levelKey(1), levelKey(2)] }, revision: 4 };
   await engine.setUser(user('a'));
   backend.offline = true;
   engine.saveLocal(createSaveState());
@@ -98,12 +100,12 @@ test('CAS conflict never merges and choosing local still compares latest revisio
   backend.record = { save: save(3), revision: 2 };
   await engine.sync();
   assert.equal(engine.state.status, 'conflict');
-  assert.equal(engine.save.activeLevel, 2);
+  assert.equal(engine.save.activeLevel, levelKey(2));
   assert.equal(backend.writes.length, 0);
   backend.record = { save: save(4), revision: 3 };
   await engine.resolve('local');
   assert.equal(backend.writes[0].revision, 3);
-  assert.equal(backend.record?.save.activeLevel, 2);
+  assert.equal(backend.record?.save.activeLevel, levelKey(2));
   engine.suspend();
 });
 
@@ -118,7 +120,7 @@ test('choosing cloud replaces local progress and emits reload once', async () =>
   engine.onSave((value) => replacements.push(value));
   await engine.resolve('cloud');
   assert.equal(replacements.length, 1);
-  assert.equal(engine.save.activeLevel, 3);
+  assert.equal(engine.save.activeLevel, levelKey(3));
   assert.equal(engine.state.status, 'synced');
   engine.suspend();
 });
@@ -138,7 +140,7 @@ test('in-flight edits upload in order against the new revision without reloading
   gate.resolve();
   await uploading;
   assert.deepEqual(backend.writes.map((entry) => entry.revision), [0, 1]);
-  assert.equal(backend.record?.save.activeLevel, 2);
+  assert.equal(backend.record?.save.activeLevel, levelKey(2));
   assert.equal(reloads, 0);
   engine.suspend();
 });
@@ -151,7 +153,7 @@ test('logout restores guest synchronously and stale account request cannot repla
   const login = engine.setUser(user('a'));
   engine.saveLocal(save(2));
   const logout = engine.setUser(null);
-  assert.equal(engine.save.activeLevel, 1);
+  assert.equal(engine.save.activeLevel, levelKey(1));
   await logout;
   backend.readGate = null;
   await engine.setUser(user('b'));
@@ -175,8 +177,8 @@ test('CAS race at write is surfaced; selecting local again cannot silently win a
   gate.resolve();
   await uploading;
   assert.equal(engine.state.status, 'conflict');
-  assert.equal(engine.save.activeLevel, 1);
-  assert.equal(backend.record.save.activeLevel, 2);
+  assert.equal(engine.save.activeLevel, levelKey(1));
+  assert.equal(backend.record.save.activeLevel, levelKey(2));
   engine.suspend();
 });
 
@@ -198,7 +200,7 @@ test('cross-tab change during read or upload preserves conflict and never overwr
     writeGate.resolve();
     await syncing;
     assert.equal(engine.state.status, 'conflict');
-    assert.equal(engine.save.activeLevel, 1);
+    assert.equal(engine.save.activeLevel, levelKey(1));
     assert.equal(readAccount(store, 'a')?.editId, 'another-tab');
     engine.suspend();
   }
@@ -238,8 +240,8 @@ test('failed account deletion keeps scoped outbox; success clears only that owne
   store.setItem(accountKey('b'), JSON.stringify({ save: save(3), revision: 3, dirty: true, editId: 'b' }));
   await engine.clearDeletedUser();
   assert.equal(readAccount(store, 'a'), null);
-  assert.equal(readAccount(store, 'b')?.save.activeLevel, 3);
-  assert.equal(engine.save.activeLevel, 1);
+  assert.equal(readAccount(store, 'b')?.save.activeLevel, levelKey(3));
+  assert.equal(engine.save.activeLevel, levelKey(1));
   assert.equal(engine.state.user, null);
 });
 

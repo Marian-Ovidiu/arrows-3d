@@ -1,67 +1,95 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { LEVELS, TUTORIAL_INDEX, getExit, solve } from '../src/puzzle.ts';
-import { createSaveState, parseSaveState } from '../src/save-state.ts';
-
-const order = solve(LEVELS[0].pieces)!;
+import { createSaveState, parseSaveState, MAX_SAVE_BYTES, MAX_BEST_TIME_MS } from '../src/save-state.ts';
+const first = LEVELS[0];
+const other = LEVELS[1];
+const tutorial = LEVELS[TUTORIAL_INDEX];
+const order = solve(first.pieces)!;
 const encode = (value: object) => JSON.stringify({ ...createSaveState(), ...value });
 
 test('corrupt, unsupported and oversized saves reset safely', () => {
-  for (const raw of [null, '', '{', 'null', '[]', '{"version":2}', ' '.repeat(100_001)]) {
-    assert.deepEqual(parseSaveState(raw), createSaveState());
-  }
+  for (const raw of [null, '', '{', 'null', '[]', '{"version":9}', ' '.repeat(MAX_SAVE_BYTES + 1)]) assert.deepEqual(parseSaveState(raw), createSaveState());
 });
-
-test('valid progress resumes with chronological undo history', () => {
-  const state = parseSaveState(encode({ activeLevel: 1, levels: { '0': { removedIds: order.slice(0, 5) } } }));
-  assert.equal(state.activeLevel, 1);
-  assert.deepEqual(state.levels['0'].removedIds, order.slice(0, 5));
+test('stable keys resume chronological undo history independently of catalog order', () => {
+  const state = parseSaveState(encode({ activeLevel: other.key, levels: { [first.key]: { removedIds: order.slice(0, 5) } } }));
+  assert.equal(state.activeLevel, other.key);
+  assert.deepEqual(state.levels[first.key].removedIds, order.slice(0, 5));
+  const a = LEVELS[0]; const b = LEVELS[1];
+  try {
+    LEVELS[0] = b; LEVELS[1] = a;
+    assert.deepEqual(parseSaveState(JSON.stringify(state)), state);
+  } finally { LEVELS[0] = a; LEVELS[1] = b; }
 });
-
-test('invalid indexes and duplicate completed entries are normalized', () => {
-  const state = parseSaveState(encode({ activeLevel: -1, completed: [2, 0, 2, -1, 99, '1', 0.5], levels: { '-1': { removedIds: order }, '__proto__': {} } }));
-  assert.equal(state.activeLevel, TUTORIAL_INDEX);
-  assert.deepEqual(state.completed, [0, 2]);
+test('unknown keys and duplicate completed entries are normalized', () => {
+  const state = parseSaveState(encode({ activeLevel: 'retired', completed: [other.key, first.key, other.key, -1, 'retired'], levels: { retired: { removedIds: order }, '__proto__': {} } }));
+  assert.equal(state.activeLevel, tutorial.key);
+  assert.deepEqual(state.completed, [first.key, other.key].sort());
   assert.deepEqual(state.levels, {});
 });
-
 test('unknown and repeated ids discard the invalid suffix', () => {
   for (const invalid of ['unknown', order[0], null]) {
-    const state = parseSaveState(encode({ levels: { '0': { removedIds: [order[0], invalid, order[1]] } } }));
-    assert.deepEqual(state.levels['0'].removedIds, [order[0]]);
+    const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: [order[0], invalid, order[1]] } } }));
+    assert.deepEqual(state.levels[first.key].removedIds, [order[0]]);
   }
 });
-
-test('a blocked removal cannot be restored from storage', () => {
-  const blocked = LEVELS[0].pieces.find((piece) => !getExit(piece, LEVELS[0].pieces).free)!;
+test('blocked removal cannot be restored from storage', () => {
+  const blocked = first.pieces.find((piece) => !getExit(piece, first.pieces).free)!;
   assert.ok(blocked);
-  const state = parseSaveState(encode({ levels: { '0': { removedIds: [blocked.id, ...order] }, '1': { removedIds: [] } } }));
-  assert.deepEqual(state.levels['0'].removedIds, []);
-  assert.deepEqual(state.levels['1'].removedIds, []);
+  const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: [blocked.id, ...order] }, [other.key]: { removedIds: [] } } }));
+  assert.deepEqual(state.levels[first.key].removedIds, []);
+  assert.deepEqual(state.levels[other.key].removedIds, []);
 });
-
-test('complete legal histories imply completion and survive reload', () => {
-  const state = parseSaveState(encode({ levels: { '0': { removedIds: order } } }));
-  assert.deepEqual(state.completed, [0]);
-  assert.deepEqual(parseSaveState(JSON.stringify(state)), state);
+test('complete histories imply permanent discovery; resetting histories preserves it', () => {
+  const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: order } } }));
+  assert.deepEqual(state.completed, [first.key]);
+  state.levels[first.key].removedIds = [];
+  assert.deepEqual(parseSaveState(JSON.stringify(state)).completed, [first.key]);
 });
-
 test('defaults, parsed results and source levels are isolated', () => {
-  const first = parseSaveState(encode({ levels: { '0': { removedIds: order.slice(0, 2) } } }));
-  first.levels['0'].removedIds.push('bad');
-  first.completed.push(2);
-  assert.deepEqual(createSaveState(), { version: 1, activeLevel: TUTORIAL_INDEX, completed: [], levels: {}, tutorial: { rotated: false, blockedSeen: false } });
-  assert.deepEqual(parseSaveState(encode({ levels: { '0': { removedIds: order.slice(0, 2) } } })).levels['0'].removedIds, order.slice(0, 2));
-  assert.equal(LEVELS[0].pieces.length, 26);
+  const count = first.pieces.length;
+  const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: order.slice(0, 2) } } }));
+  state.levels[first.key].removedIds.push('bad'); state.completed.push(other.key); state.bestTimes[first.key] = 1;
+  assert.deepEqual(createSaveState(), { version: 2, activeLevel: tutorial.key, completed: [], levels: {}, bestTimes: {}, tutorial: { rotated: false, blockedSeen: false } });
+  assert.deepEqual(parseSaveState(encode({ levels: { [first.key]: { removedIds: order.slice(0, 2) } } })).levels[first.key].removedIds, order.slice(0, 2));
+  assert.equal(first.pieces.length, count);
 });
-
-
-test('old saves keep their original levels and tutorial progress is validated', () => {
-  const old = parseSaveState(JSON.stringify({ version: 1, activeLevel: 0, completed: [1], levels: { '0': { removedIds: order.slice(0, 3) } } }));
-  assert.equal(old.activeLevel, 0);
-  assert.deepEqual(old.levels['0'].removedIds, order.slice(0, 3));
-  assert.deepEqual(old.tutorial, { rotated: false, blockedSeen: false });
-  const state = parseSaveState(encode({ activeLevel: TUTORIAL_INDEX, tutorial: { rotated: true, blockedSeen: 'true' } }));
+test('version 1 migration keeps only tutorial history, completion and tutorial flags', () => {
+  const tutorialOrder = solve(tutorial.pieces)!;
+  const old = { version: 1, activeLevel: 3, completed: [0, 1, 2], levels: { '0': { removedIds: order }, '3': { removedIds: tutorialOrder.slice(0, 2) } }, tutorial: { rotated: true, blockedSeen: 'true' } };
+  const state = parseSaveState(JSON.stringify(old));
+  assert.equal(state.activeLevel, tutorial.key);
+  assert.deepEqual(state.completed, []);
+  assert.deepEqual(state.levels, { [tutorial.key]: { removedIds: tutorialOrder.slice(0, 2) } });
   assert.deepEqual(state.tutorial, { rotated: true, blockedSeen: false });
-  assert.deepEqual(parseSaveState(JSON.stringify(state)), state);
+  const completed = parseSaveState(JSON.stringify({ ...old, completed: [3] }));
+  assert.equal(completed.activeLevel, first.key);
+  assert.deepEqual(completed.completed, [tutorial.key]);
+  assert.equal(parseSaveState(JSON.stringify({ ...old, activeLevel: 1 })).activeLevel, first.key);
+  const full = parseSaveState(JSON.stringify({ ...old, levels: { '3': { removedIds: tutorialOrder } } }));
+  assert.equal(full.activeLevel, first.key);
+  assert.deepEqual(full.completed, [tutorial.key]);
+});
+test('personal bests accept only finite positive bounded integer milliseconds and known keys', () => {
+  for (const invalid of [0,-1,0.5,MAX_BEST_TIME_MS + 1,'100',null,Number.NaN,Infinity]) {
+    assert.deepEqual(parseSaveState(encode({ bestTimes: { [first.key]: invalid } })).bestTimes, {});
+  }
+  assert.deepEqual(parseSaveState(encode({ bestTimes: { [first.key]: MAX_BEST_TIME_MS, retired: 10 } })).bestTimes, { [first.key]: MAX_BEST_TIME_MS });
+});
+test('oversized unknown histories are ignored without iterating their values', () => {
+  const state = parseSaveState(encode({ levels: { retired: { removedIds: Array(10000).fill('unknown') }, [first.key]: { removedIds: order.slice(0,1) } } }));
+  assert.deepEqual(state.levels, { [first.key]: { removedIds: order.slice(0,1) } });
+});
+test('full solution proof survives reset and incomplete or illegal proof is discarded', () => {
+  const completed = parseSaveState(encode({ levels: { [first.key]: { removedIds: order } } }));
+  assert.deepEqual(completed.levels[first.key].solutionIds, order);
+  completed.levels[first.key].removedIds = [];
+  assert.deepEqual(parseSaveState(JSON.stringify(completed)).levels[first.key].solutionIds, order);
+  const fromProof = parseSaveState(encode({ levels: { [first.key]: { removedIds: [], solutionIds: order } } }));
+  assert.deepEqual(fromProof.completed, [first.key]);
+  for (const invalid of [order.slice(0,-1), [order[0], ...order.slice(0,-1)], ['unknown', ...order.slice(1)]]) {
+    const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: [], solutionIds: invalid } } }));
+    assert.equal(state.levels[first.key].solutionIds, undefined);
+    assert.deepEqual(state.completed, []);
+  }
 });

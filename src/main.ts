@@ -7,7 +7,7 @@ import '@fontsource/instrument-serif/latin-400-italic.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { loadSave, saveGame } from './persistence';
-import { onAccountSaveChange } from './account';
+import { onAccountSaveChange, accountState, subscribeAccount } from './account';
 import { initAccountUi } from './account-ui';
 import { createSaveState } from './save-state';
 import * as THREE from 'three';
@@ -17,7 +17,11 @@ import { PointerGestureTracker } from './pointer-gesture';
 import { getTutorialStep } from './tutorial';
 import { initPwa } from './pwa';
 import { playSound, soundEnabled, toggleSound } from './sound';
-import { LEVELS, TUTORIAL_INDEX, getExit, getAvailable, type Piece } from './puzzle';
+import { LEVELS, CHAPTERS, CAMPAIGN_INDEXES, JOURNEY_INDEXES, TUTORIAL_INDEX, getExit, getAvailable, type Piece, type Level } from './puzzle';
+import { createRelic } from './relics';
+import { initMetagame, RARITIES } from './metagame-ui';
+import { TimeTrial, formatTime } from './time-trial';
+import { submitDiscovery, startTimedRun, finishTimedRun } from './leaderboard';
 
 const icons = {
   pause: '<path d="M8 5v14M16 5v14"/>',
@@ -39,13 +43,15 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <section class="home-screen" id="home-screen" aria-label="Svela, menu principale">
     <button id="home-settings" class="icon-button home-settings" aria-label="Impostazioni">${icon('settings')}</button>
     <div class="home-title"><span class="home-kicker">UN PICCOLO MONDO DA LIBERARE</span><h1>svela<span>✧</span></h1><p>La meraviglia è dentro.</p></div>
-    <div class="home-actions"><button id="play-game" class="play-button">Gioca ${icon('next')}</button><button id="open-journey" class="menu-link">Le tue scoperte</button><button id="install-game" class="install-button" hidden>Installa Svela ${icon('arrow')}</button></div>
+    <div class="home-actions"><button id="play-game" class="play-button">Gioca ${icon('next')}</button><button id="open-journey" class="menu-link">Le tue scoperte</button><div class="home-explore"><button id="open-collection" class="menu-link">Le reliquie ${icon('star')}</button><button id="open-rankings" class="menu-link">Classifiche ${icon('planet')}</button></div><button id="install-game" class="install-button" hidden>Installa Svela ${icon('arrow')}</button></div>
     <div class="home-orbit" aria-hidden="true"></div>
   </section>
   <main class="game">
     <section class="play-area" aria-label="Puzzle tridimensionale">
       <div class="scene" id="scene"></div>
       <div class="game-hud" id="game-hud" hidden><button id="pause-game" class="icon-button pause-button" aria-label="Pausa">${icon('pause')}</button><span class="progress-badge" id="progress-label"></span></div>
+      <div class="level-brief" id="level-brief" hidden><span class="eyebrow" id="level-number"></span><strong id="level-title"></strong><p id="level-focus"></p></div>
+      <div class="trial-status" id="trial-status" hidden><span id="trial-label" role="status">PROVA A TEMPO</span><span id="trial-clock" aria-label="Tempo della prova">00:00.000</span></div>
       <div class="tutorial-card" id="tutorial-card" hidden>
         <div class="tutorial-heading"><span class="eyebrow" id="tutorial-step"></span><button id="skip-tutorial">Salta ${icon('next')}</button></div>
         <div role="status" aria-live="polite"><strong id="tutorial-title"></strong><p id="tutorial-description"></p></div>
@@ -61,14 +67,16 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <section class="journey-screen" id="journey-screen" aria-label="Le tue scoperte" hidden>
     <button id="back-home" class="icon-button screen-back" aria-label="Torna al menu">${icon('back')}</button>
     <div class="journey-title"><span class="eyebrow">IL TUO PICCOLO VIAGGIO</span><h2>Le scoperte</h2></div>
-    <nav class="journey-path" aria-label="Livelli">${[TUTORIAL_INDEX, 0, 1, 2].map((i, order) => `<button class="journey-node" data-level="${i}" aria-pressed="false"><span class="node-art node-art-${order}">${icon((['arrow','seed','planet','star'] as const)[order])}<span class="tab-check" aria-label="completato"></span></span><span class="node-copy"><small>${i === TUTORIAL_INDEX ? 'INIZIA QUI' : `SCOPERTA 0${i + 1}`}</small><strong>${LEVELS[i].name}</strong><span class="node-progress"></span></span></button>`).join('')}</nav>
+    <p class="journey-summary" id="journey-summary"></p>
+    <nav class="journey-path" aria-label="Livelli">${JOURNEY_INDEXES.map((i, order) => `${i !== TUTORIAL_INDEX && (i === 0 || LEVELS[i].chapter !== LEVELS[i - 1].chapter) ? `<div class="journey-chapter"><span class="eyebrow">CAPITOLO ${String(LEVELS[i].chapter).padStart(2, '0')}</span><h3>${CHAPTERS.find(chapter => chapter.id === LEVELS[i].chapter)!.name}</h3><p>${CHAPTERS.find(chapter => chapter.id === LEVELS[i].chapter)!.description}</p></div>` : ''}<button class="journey-node" data-level="${i}" aria-pressed="false"><span class="node-art node-art-${LEVELS[i].chapter}">${icon(i === TUTORIAL_INDEX ? 'arrow' : LEVELS[i].chapter === 1 ? 'seed' : LEVELS[i].chapter === 2 ? 'planet' : 'star')}<span class="node-number">${i === TUTORIAL_INDEX ? '✧' : String(i + 1).padStart(2, '0')}</span><span class="tab-check" aria-label="completato"></span></span><span class="node-copy"><small>${i === TUTORIAL_INDEX ? 'INIZIA QUI' : `SCOPERTA ${String(i + 1).padStart(2, '0')}`}</small><strong>${LEVELS[i].name}</strong><span class="node-progress"></span></span></button>`).join('')}</nav>
   </section>
-  <dialog id="pause-dialog" class="menu-dialog"><span class="eyebrow">PRENDITI IL TUO TEMPO</span><h2>Un momento.</h2><button id="resume-game" class="play-button">Riprendi ${icon('next')}</button><button id="pause-journey" class="menu-option">Le tue scoperte</button><button id="restart" class="menu-option">Ricomincia il livello</button><button id="pause-settings" class="menu-option">Impostazioni</button><button id="pause-home" class="menu-option muted">Menu principale</button></dialog>
+  <dialog id="pause-dialog" class="menu-dialog"><span class="eyebrow">PRENDITI IL TUO TEMPO</span><h2>Un momento.</h2><button id="resume-game" class="play-button">Riprendi ${icon('next')}</button><button id="pause-journey" class="menu-option">Le tue scoperte</button><button id="pause-collection" class="menu-option">La stanza delle reliquie</button><button id="pause-trial" class="menu-option" hidden>Prova a tempo</button><button id="restart" class="menu-option">Ricomincia il livello</button><button id="pause-settings" class="menu-option">Impostazioni</button><button id="pause-home" class="menu-option muted">Menu principale</button></dialog>
   <dialog id="settings-dialog" class="menu-dialog"><button id="close-settings" class="dialog-close icon-button" aria-label="Chiudi impostazioni">${icon('close')}</button><span class="eyebrow">COME PIACE A TE</span><h2>Il tuo spazio.</h2><button id="sound-toggle" class="setting-toggle" aria-pressed="true"><span>Suoni</span><span class="toggle-track" aria-hidden="true"></span></button><button id="help" class="menu-option">Come si gioca</button><p class="local-save-note">I progressi sono salvati su questo dispositivo.</p></dialog>
   <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
   <p id="save-warning" class="save-warning" role="status" hidden>Salvataggio non disponibile. Tieni aperto il gioco per conservare questa partita.</p>
   <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Chiudi istruzioni">${icon('close')}</button><span class="eyebrow">BASTA CAMBIARE PROSPETTIVA</span><h2>Fai spazio alla scoperta.</h2><ol><li><strong>Ruota la figura.</strong> Trascina con un dito o con il mouse. Puoi guardarla anche da sotto.</li><li><strong>Accendi un percorso.</strong> Tocca un cubo: la luce segue la freccia. Se incontra un ostacolo, si ferma.</li><li><strong>Libera un pezzo.</strong> Tocca di nuovo lo stesso cubo. Esce solo se tutto il percorso è libero.</li><li><strong>Scopri il centro.</strong> Libera tutti i cubi e porta alla luce il piccolo oggetto nascosto.</li></ol><p class="help-note">Un solo fascio alla volta. Puoi ruotare la figura anche con una freccia selezionata. La lampadina ti aiuta quando serve.</p><details><summary>Comandi da tastiera</summary><p>Metti a fuoco la scena: frecce direzionali per ruotare, + e − per lo zoom, N per selezionare un pezzo, Invio per estrarlo, Esc per deselezionare.</p></details><button id="start" class="primary-button">Ho capito, esploriamo ${icon('next')}</button></dialog>
-  <dialog id="win-dialog"><span class="win-symbol">✧</span><span class="eyebrow">HAI FATTO SPAZIO ALLA MERAVIGLIA</span><h2 id="win-title"></h2><p id="win-description"></p><div class="win-actions"><button id="next-level" class="primary-button">La prossima scoperta ${icon('next')}</button><button id="admire" class="text-button">Resta a guardare</button></div></dialog>
+  <dialog id="win-dialog"><span class="win-symbol">✧</span><span class="eyebrow" id="win-rarity">HAI FATTO SPAZIO ALLA MERAVIGLIA</span><h2 id="win-title"></h2><p id="win-description"></p><p id="win-record" class="win-record" hidden></p><p id="win-online" role="status" hidden></p><div class="win-actions"><button id="next-level" class="primary-button">La prossima scoperta ${icon('next')}</button><button id="win-collection" class="secondary-button">Nella stanza delle reliquie</button><button id="win-trial" class="text-button">Prova a tempo</button><button id="admire" class="text-button">Resta a guardare</button></div></dialog>
+  <dialog id="trial-ready-dialog" class="menu-dialog"><span class="eyebrow">UNA PICCOLA SFIDA CON TE STESSO</span><h2 id="trial-ready-title"></h2><p>Il tempo parte con <strong>Inizia</strong>. Libera tutti i pezzi senza suggerimenti, annullamenti o pause.</p><p class="help-note">Puoi interrompere quando vuoi e continuare la scoperta liberamente. I record personali funzionano anche offline; i tempi online vengono misurati dal server.</p><p id="trial-ready-status" role="status"></p><button id="begin-trial" class="primary-button">Inizia</button><button id="cancel-trial" class="text-button">Gioca con calma</button></dialog>
 `;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -81,21 +89,28 @@ let history: Piece[] = [];
 let generation = 0;
 let completionTimer: ReturnType<typeof setTimeout> | undefined;
 let savedGame = createSaveState();
-let completed = new Set<number>();
+let completed = new Set<string>();
+let trial: TimeTrial | null = null;
+let onlineRun: { id: string; owner: string } | null = null;
+let trialInterval: ReturnType<typeof setInterval> | undefined;
+let trialStarting = false;
 let ready = false;
 let appActive = true;
 let rendering = false;
 let idleFrames = 0;
 let lastFrameTime = 0;
 $('app').inert = true;
-let screen: 'home' | 'journey' | 'game' = 'home';
+let screen: 'home' | 'journey' | 'game' | 'collection' | 'rankings' = 'home';
 $('app').dataset.screen = screen;
 
 function persistGame() {
   if (!ready) return Promise.resolve();
-  savedGame.activeLevel = levelIndex;
+  savedGame.activeLevel = LEVELS[levelIndex].key;
   savedGame.completed = [...completed];
-  savedGame.levels[String(levelIndex)] = { removedIds: history.map(piece => piece.id) };
+  const key = LEVELS[levelIndex].key;
+  const removedIds = history.map(piece => piece.id);
+  const solutionIds = removedIds.length === LEVELS[levelIndex].pieces.length ? [...removedIds] : savedGame.levels[key]?.solutionIds;
+  savedGame.levels[key] = { removedIds, ...(solutionIds ? { solutionIds } : {}) };
   return saveGame(savedGame).then(() => { $('save-warning').hidden = true; }).catch(() => {
     $('save-warning').hidden = false;
   });
@@ -154,6 +169,9 @@ const beam = new THREE.Group();
 scene.add(beam);
 const reward = new THREE.Group();
 scene.add(reward);
+const gallery = new THREE.Group();
+gallery.visible = false;
+scene.add(gallery);
 const meshes = new Map<string, THREE.Group>();
 const cubeGeometry = new RoundedBoxGeometry(0.88, 0.88, 0.88, 4, 0.065);
 const arrowShape = new THREE.Shape();
@@ -211,7 +229,12 @@ function createPiece(piece: Piece) {
 }
 
 function createHomeSculpture() {
-  for (const piece of LEVELS[0].pieces) {
+  const pieces: Piece[] = [];
+  for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+    if (!x && !y && !z) continue;
+    pieces.push({ id: `home-${x}-${y}-${z}`, position: [x, y, z], direction: y ? [0, y, 0] : x ? [x, 0, 0] : [0, 0, z], color: pieces.length % 5 });
+  }
+  for (const piece of pieces) {
     const cube = makePiece(piece);
     cube.position.multiplyScalar(1.12);
     if (piece.position.every(value => value === 1)) cube.position.add(new THREE.Vector3(.22, .3, .2));
@@ -223,7 +246,8 @@ function createHomeSculpture() {
 function closeDialogs() {
   document.querySelectorAll<HTMLDialogElement>('dialog[open]').forEach(dialog => dialog.close());
 }
-function showScreen(next: 'home' | 'journey' | 'game') {
+function showScreen(next: typeof screen) {
+  if (screen === 'game' && next !== 'game') interruptTrial('Hai lasciato il livello.');
   if (ready && screen === 'game') { settleAnimations(); void persistGame(); }
   clearTimeout(completionTimer);
   closeDialogs();
@@ -232,20 +256,29 @@ function showScreen(next: 'home' | 'journey' | 'game') {
   $('app').classList.toggle('is-tutorial', next === 'game' && levelIndex === TUTORIAL_INDEX);
   $('home-screen').hidden = next !== 'home';
   $('journey-screen').hidden = next !== 'journey';
+  $('collection-screen').hidden = next !== 'collection';
+  $('rankings-screen').hidden = next !== 'rankings';
+  const canvasParent = next === 'collection' ? $('relic-stage') : $('scene');
+  if (renderer.domElement.parentElement !== canvasParent) canvasParent.append(renderer.domElement);
   $('game-hud').hidden = next !== 'game';
   $('game-tools').hidden = next !== 'game';
-  controls.enabled = next === 'game';
-  renderer.domElement.tabIndex = next === 'game' ? 0 : -1;
-  renderer.domElement.setAttribute('aria-hidden', String(next !== 'game'));
+  controls.enabled = next === 'game' || next === 'collection';
+  renderer.domElement.tabIndex = next === 'game' || next === 'collection' ? 0 : -1;
+  renderer.domElement.setAttribute('aria-hidden', String(next !== 'game' && next !== 'collection'));
+  renderer.domElement.setAttribute('aria-label', next === 'collection' ? 'Reperto 3D. Trascina per osservare, usa la rotella o pizzica per avvicinarti.' : 'Figura 3D. Trascina per ruotare. Tastiera: frecce per ruotare, N per selezionare, Invio per estrarre.');
   puzzleGroup.visible = departingGroup.visible = reward.visible = beam.visible = next === 'game';
   homeSculpture.visible = next === 'home';
-  ground.visible = next !== 'journey';
-  ground.position.y = next === 'home' ? -2.1 : levelIndex === 0 || levelIndex === TUTORIAL_INDEX ? -1.65 : -2.65;
+  gallery.visible = next === 'collection';
+  ground.visible = next === 'home' || next === 'game';
+  ground.position.y = next === 'home' ? -2.1 : groundHeight();
+  controls.minDistance = next === 'collection' ? 1.2 : 4;
+  $('level-brief').hidden = next !== 'game' || levelIndex === TUTORIAL_INDEX;
+  $('trial-status').hidden = next !== 'game' || !trial;
   cameraTween = null;
   gestures.reset(); orbitStart = null;
   updateProgress();
   if (next === 'home') {
-    const begun = history.length > 0 || completed.size > 0 || savedGame.tutorial.rotated;
+    const begun = history.length > 0 || completed.size > 0 || savedGame.tutorial.rotated || Object.values(savedGame.levels).some(level => level.removedIds.length);
     $('play-game').innerHTML = `${begun ? 'Continua' : 'Gioca'} ${icon('next')}`;
   }
   resize();
@@ -265,14 +298,17 @@ function enterGame(index = levelIndex, restart = false) {
 }
 function continueGame() {
   if (remaining.length) { enterGame(); return; }
-  const journey = [TUTORIAL_INDEX, 0, 1, 2];
+  const journey = JOURNEY_INDEXES;
   const current = journey.indexOf(levelIndex);
   const candidates = [...journey.slice(current + 1), ...journey.slice(0, current)];
-  const next = candidates.find(index => (savedGame.levels[String(index)]?.removedIds.length ?? 0) < LEVELS[index].pieces.length);
-  enterGame(next ?? 0, next === undefined);
+  const next = candidates.find(index => !completed.has(LEVELS[index].key));
+  if (next === undefined) { metagame.openCollection(levelIndex); return; }
+  enterGame(next);
 }
 function openPause() {
   if (screen !== 'game') return;
+  interruptTrial('La prova è stata messa in pausa.');
+  $('pause-trial').hidden = levelIndex === TUTORIAL_INDEX || !completed.has(LEVELS[levelIndex].key);
   settleAnimations(); clearTimeout(completionTimer); void persistGame();
   controls.enabled = false;
   $<HTMLDialogElement>('pause-dialog').showModal();
@@ -287,30 +323,45 @@ function openSettings() {
 function createReward() {
   disposeGroup(reward);
   reward.rotation.set(0, 0, 0);
-  const gold = new THREE.MeshStandardMaterial({ color: 0xe4b85b, metalness: 0.45, roughness: 0.25 });
-  const jade = new THREE.MeshStandardMaterial({ color: 0x6f9e8a, roughness: 0.4, metalness: 0.05 });
-  const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material, position = new THREE.Vector3()) => {
-    const item = new THREE.Mesh(geometry, material); item.position.copy(position); item.castShadow = true; reward.add(item); return item;
-  };
-  if (levelIndex === 0 || levelIndex === TUTORIAL_INDEX) {
-    mesh(new THREE.SphereGeometry(0.21, 24, 16), gold, new THREE.Vector3(0, -0.17, 0));
-    mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.42, 10), jade, new THREE.Vector3(0, 0.08, 0));
-    const leaf1 = mesh(new THREE.SphereGeometry(0.16, 16, 12), jade, new THREE.Vector3(-0.115, 0.2, 0));
-    leaf1.scale.set(1, 0.46, 0.6); leaf1.rotation.z = -0.55;
-    const leaf2 = mesh(new THREE.SphereGeometry(0.18, 16, 12), jade, new THREE.Vector3(0.13, 0.29, 0));
-    leaf2.scale.set(1, 0.43, 0.6); leaf2.rotation.z = 0.5;
-  } else if (levelIndex === 1) {
-    mesh(new THREE.IcosahedronGeometry(0.24, 0), new THREE.MeshStandardMaterial({ color: 0x8caebc, metalness: 0.38, roughness: 0.18 }));
-    const ring = mesh(new THREE.TorusGeometry(0.37, 0.025, 12, 56), gold);
-    ring.rotation.set(1.05, 0.3, -0.4);
-    mesh(new THREE.SphereGeometry(0.065, 12, 12), gold, new THREE.Vector3(0.34, 0.1, 0));
-  } else {
-    mesh(new THREE.OctahedronGeometry(0.27), gold);
-    for (const direction of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
-      const point = mesh(new THREE.ConeGeometry(0.14, 0.22, 4), gold, vec(direction).multiplyScalar(0.28));
-      point.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), vec(direction));
-    }
+  reward.scale.setScalar(1);
+  if (!remaining.length) reward.add(createRelic(LEVELS[levelIndex].reward));
+  else {
+    // An open early puzzle still keeps the actual collectible a surprise.
+    const seal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.33, 1), new THREE.MeshStandardMaterial({ color: 0x95a48b, roughness: 0.72, metalness: 0.08 }));
+    reward.add(seal);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.012, 6, 40), new THREE.MeshStandardMaterial({ color: 0xbca36e, roughness: 0.4, metalness: 0.45 }));
+    band.rotation.set(0.7, 0.4, 0.2); reward.add(band);
   }
+}
+
+function previewRelic(level: Level, discovered: boolean) {
+  disposeGroup(gallery);
+  gallery.rotation.set(0, 0, 0);
+  if (discovered) gallery.add(createRelic(level.reward));
+  else {
+    const mystery = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshStandardMaterial({ color: 0x98a793, roughness: 0.8, metalness: 0.08 }));
+    gallery.add(mystery);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.008, 6, 48), new THREE.MeshStandardMaterial({ color: 0xb7bd9d, roughness: 0.6 }));
+    ring.rotation.set(0.7, 0.3, 0.2); gallery.add(ring);
+  }
+  const chapter = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === level.chapter);
+  if (chapter.every(index => completed.has(LEVELS[index].key))) {
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.57, 0.62, 0.1, 40), new THREE.MeshStandardMaterial({ color: level.chapter === 1 ? 0x8eae91 : level.chapter === 2 ? 0x94afb8 : 0xb7a0ba, roughness: 0.8 }));
+    pedestal.position.y = -0.56; gallery.add(pedestal);
+    chapter.forEach((index, order) => {
+      const miniature = createRelic(LEVELS[index].reward);
+      miniature.scale.setScalar(0.22);
+      const angle = order * Math.PI * 2 / chapter.length;
+      miniature.position.set(Math.cos(angle) * 0.48, -0.43, Math.sin(angle) * 0.48);
+      gallery.add(miniature);
+    });
+  }
+  controls.target.set(0, 0, 0);
+  const bounds = $('relic-stage').getBoundingClientRect();
+  camera.aspect = bounds.width / Math.max(1, bounds.height); camera.updateProjectionMatrix();
+  camera.position.copy(new THREE.Vector3(0.6, 0.35, 1.4).normalize().multiplyScalar(2.8 * Math.max(1, 1 / camera.aspect)));
+  camera.lookAt(0, 0, 0); controls.update();
+  wakeRenderer();
 }
 
 function announce(message: string) { $('announcement').textContent = message; }
@@ -351,13 +402,20 @@ function updateProgress() {
   $('progress-label').setAttribute('aria-label', `${removed} di ${level.pieces.length} pezzi liberati`);
   $<HTMLButtonElement>('undo').disabled = history.length === 0;
   $<HTMLButtonElement>('hint').disabled = remaining.length === 0;
+  $('level-brief').hidden = screen !== 'game' || levelIndex === TUTORIAL_INDEX;
+  $('level-number').textContent = `SCOPERTA ${String(levelIndex + 1).padStart(2, '0')} · ${CHAPTERS.find(chapter => chapter.id === level.chapter)?.name ?? ''}`;
+  $('level-title').textContent = level.name;
+  $('level-focus').textContent = level.focus;
+  const discoveryCount = CAMPAIGN_INDEXES.filter(index => completed.has(LEVELS[index].key)).length;
+  $('journey-summary').textContent = `${discoveryCount} / ${CAMPAIGN_INDEXES.length} scoperte · tre piccoli mondi da ritrovare`;
   document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach(button => {
     const i = Number(button.dataset.level);
     button.setAttribute('aria-pressed', String(i === levelIndex));
-    button.querySelector('.tab-check')!.textContent = completed.has(i) ? '✓' : '';
-    button.querySelector('.tab-check')!.setAttribute('aria-label', completed.has(i) ? 'completato' : '');
-    const count = i === levelIndex ? history.length : (savedGame.levels[String(i)]?.removedIds.length ?? 0);
-    button.querySelector('.node-progress')!.textContent = completed.has(i) ? 'Scoperta' : count ? `${count} / ${LEVELS[i].pieces.length}` : i === TUTORIAL_INDEX ? 'Quattro piccoli passi' : `${LEVELS[i].pieces.length} pezzi`;
+    const key = LEVELS[i].key;
+    button.querySelector('.tab-check')!.textContent = completed.has(key) ? '✓' : '';
+    button.querySelector('.tab-check')!.setAttribute('aria-label', completed.has(key) ? 'completato' : '');
+    const count = i === levelIndex ? history.length : (savedGame.levels[key]?.removedIds.length ?? 0);
+    button.querySelector('.node-progress')!.textContent = completed.has(key) ? `Svelato${savedGame.bestTimes[key] ? ` · ${formatTime(savedGame.bestTimes[key])}` : ''}` : count ? `${count} / ${LEVELS[i].pieces.length}` : i === TUTORIAL_INDEX ? 'Quattro piccoli passi' : `${LEVELS[i].pieces.length} pezzi`;
   });
   updateTutorial();
 }
@@ -430,7 +488,7 @@ function finishPieceAnimation(pieceId: string) {
 }
 
 function extract() {
-  if (!selected || screen !== 'game') return;
+  if (!selected || screen !== 'game' || document.querySelector('dialog[open]')) return;
   const piece = selected, group = meshes.get(piece.id);
   if (!group) return;
   wakeRenderer();
@@ -486,7 +544,12 @@ function cyclePiece() {
   const index = selected ? remaining.findIndex(p => p.id === selected!.id) : -1;
   focusPiece(remaining[(index + 1) % remaining.length]);
 }
-function defaultDistance() { return (levelIndex === TUTORIAL_INDEX ? 8.8 : levelIndex === 0 ? 9 : 13.6) * Math.max(1, 1 / camera.aspect); }
+function groundHeight() { return Math.min(...LEVELS[levelIndex].pieces.map(piece => piece.position[1])) - 0.65; }
+function defaultDistance() {
+  if (screen === 'collection') return 2.8 * Math.max(1, 1 / camera.aspect);
+  const radius = Math.max(...LEVELS[levelIndex].pieces.map(piece => Math.hypot(...piece.position))) + 0.65;
+  return (levelIndex === TUTORIAL_INDEX ? 8.8 : Math.max(8.8, radius / Math.sin(THREE.MathUtils.degToRad(17)) * 1.08)) * Math.max(1, 1 / camera.aspect);
+}
 function moveCamera(to: THREE.Vector3) {
   wakeRenderer();
   if (reducedMotion) { camera.position.copy(to); controls.update(); }
@@ -499,6 +562,9 @@ function resetView(animate = true) {
 }
 function loadLevel(index: number, restart = false) {
   if (ready) { settleAnimations(); void persistGame(); }
+  interruptTrial('È iniziata una nuova partita.');
+  trial = null; onlineRun = null; trialStarting = false;
+  $('trial-status').hidden = true;
   generation++; clearTimeout(completionTimer); animations = []; cameraTween = null;
   $<HTMLDialogElement>('win-dialog').close();
   selected = null; clearBeam(); disposeGroup(puzzleGroup); meshes.clear();
@@ -506,28 +572,125 @@ function loadLevel(index: number, restart = false) {
   gestures.reset();
   if (index === TUTORIAL_INDEX && restart) savedGame.tutorial = { rotated: false, blockedSeen: false };
   $('app').classList.toggle('is-tutorial', index === TUTORIAL_INDEX);
-  const removedIds = restart ? [] : (savedGame.levels[String(index)]?.removedIds ?? []);
+  const removedIds = restart ? [] : (savedGame.levels[LEVELS[index].key]?.removedIds ?? []);
   history = removedIds.map(id => LEVELS[index].pieces.find(piece => piece.id === id)!);
   const removed = new Set(removedIds);
   remaining = LEVELS[index].pieces.filter(piece => !removed.has(piece.id));
   remaining.forEach(createPiece); createReward();
-  ground.position.y = index === 0 || index === TUTORIAL_INDEX ? -1.65 : -2.65;
+  ground.position.y = groundHeight();
   resize(); resetView(false); selectPiece(null); updateProgress();
   if (!remaining.length) moveCamera(camera.position.clone().normalize().multiplyScalar(4));
-  announce(`Livello ${index + 1}: ${LEVELS[index].name}. ${remaining.length} pezzi rimasti.${history.length ? ' Partita ripristinata.' : ''}`);
+  announce(`${index === TUTORIAL_INDEX ? 'Introduzione' : `Livello ${index + 1}`}: ${LEVELS[index].name}. ${remaining.length} pezzi rimasti.${history.length ? ' Partita ripristinata.' : ''}`);
   void persistGame();
 }
 function win() {
   playSound('win');
-  completed.add(levelIndex);
+  const level = LEVELS[levelIndex];
+  const firstDiscovery = !completed.has(level.key);
+  completed.add(level.key);
   selectPiece(null); updateProgress();
+  createReward();
+  if (!reducedMotion) animations.push({ start: performance.now(), duration: 800, update: t => reward.scale.setScalar(0.4 + smooth(t) * 0.6) });
   const currentGeneration = generation;
   moveCamera(camera.position.clone().normalize().multiplyScalar(4));
-  $('win-title').textContent = LEVELS[levelIndex].artifact;
-  $('win-description').textContent = ['Da un intreccio di frecce, un piccolo germoglio. Le cose belle avevano solo bisogno di spazio.', 'Hai seguito ogni orbita e trovato il tuo piccolo universo.', 'Anche l’incastro più fitto nascondeva un po’ di luce. Hai completato tutte e tre le scoperte.', 'Hai imparato a ruotare, leggere la luce e sciogliere un incastro. Il tuo viaggio può cominciare.'][levelIndex];
-  $('next-level').innerHTML = `${levelIndex === TUTORIAL_INDEX ? 'Comincia il viaggio' : levelIndex === 2 ? 'Ricomincia il viaggio' : 'La prossima scoperta'} ${icon('next')}`;
+  $('win-title').textContent = level.artifact;
+  $('win-rarity').textContent = levelIndex === TUTORIAL_INDEX ? 'IL VIAGGIO PUÒ COMINCIARE' : `${RARITIES[level.rarity].toUpperCase()} · ${firstDiscovery ? 'AGGIUNTO ALLA COLLEZIONE' : 'RITROVATO'}`;
+  $('win-rarity').dataset.rarity = level.rarity;
+  const chapterComplete = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === level.chapter).every(index => completed.has(LEVELS[index].key));
+  $('win-description').textContent = `${level.ending}${levelIndex !== TUTORIAL_INDEX && chapterComplete ? ` La collezione ${CHAPTERS.find(chapter => chapter.id === level.chapter)!.name} è completa.` : ''}`;
+  $('next-level').innerHTML = `${levelIndex === TUTORIAL_INDEX ? 'Comincia il viaggio' : levelIndex === CAMPAIGN_INDEXES.at(-1) ? 'Guarda le tue reliquie' : 'La prossima scoperta'} ${icon('next')}`;
+  $('win-collection').hidden = $('win-trial').hidden = levelIndex === TUTORIAL_INDEX;
+  $('win-record').hidden = true;
+  $('win-online').hidden = true;
+  const elapsed = trial?.finish(performance.now());
+  clearInterval(trialInterval);
+  if (elapsed) {
+    const previous = savedGame.bestTimes[level.key];
+    savedGame.bestTimes[level.key] = Math.min(previous ?? Infinity, elapsed);
+    $('win-record').textContent = `${!previous || elapsed < previous ? 'Nuovo record personale' : 'Prova completata'} · ${formatTime(elapsed)}`;
+    $('win-record').hidden = false;
+    $('trial-clock').textContent = formatTime(elapsed);
+    $('trial-label').textContent = 'PROVA COMPLETATA';
+  }
+  const proof = history.map(piece => piece.id);
+  if (levelIndex !== TUTORIAL_INDEX && accountState().user) {
+    const owner = accountState().user!.id;
+    const run = onlineRun;
+    $('win-online').hidden = false;
+    $('win-online').textContent = elapsed && run ? 'Verifica del tempo online…' : 'Registrazione della scoperta…';
+    void (elapsed && run && run.owner === owner ? finishTimedRun(run.id, proof).then(result => `Tempo online verificato · ${formatTime(result.elapsedMs)} · record ${formatTime(result.bestMs)}`) : submitDiscovery(level.key, proof).then(() => 'Scoperta registrata nella classifica degli esploratori.'))
+      .then(message => { if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = message; })
+      .catch(error => { if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = error instanceof Error ? error.message : 'Risultato salvato sul dispositivo. Classifica non disponibile.'; });
+  }
+  onlineRun = null;
   completionTimer = setTimeout(() => { if (currentGeneration === generation && !remaining.length) $<HTMLDialogElement>('win-dialog').showModal(); }, 1050);
 }
+
+function interruptTrial(reason: string) {
+  if (!trial?.running) return;
+  trial.invalidate(reason);
+  onlineRun = null;
+  clearInterval(trialInterval);
+  $('trial-label').textContent = 'PROVA INTERROTTA · GIOCO LIBERO';
+  $('trial-clock').textContent = '';
+  $('trial-status').classList.add('trial-interrupted');
+  announce(`${reason} Puoi continuare liberamente; questo tentativo non registra un tempo.`);
+}
+
+function prepareTimeTrial(index = levelIndex) {
+  if (index === TUTORIAL_INDEX || !completed.has(LEVELS[index].key)) return;
+  enterGame(index, true);
+  $('trial-ready-title').textContent = LEVELS[index].name;
+  $('trial-ready-status').textContent = accountState().user ? 'Prova online: resta connesso fino all’ultimo pezzo.' : 'Stai giocando per il tuo record personale. Accedi per partecipare alle classifiche online.';
+  $<HTMLButtonElement>('begin-trial').disabled = false;
+  $<HTMLDialogElement>('trial-ready-dialog').showModal();
+  controls.enabled = false;
+}
+
+async function beginTimeTrial() {
+  if (trialStarting) return;
+  trialStarting = true;
+  const currentGeneration = generation;
+  const owner = accountState().user?.id;
+  $<HTMLButtonElement>('begin-trial').disabled = true;
+  let run: { id: string; owner: string } | null = null;
+  let notice = '';
+  if (owner) {
+    $('trial-ready-status').textContent = 'Preparazione della prova online…';
+    try { const result = await startTimedRun(LEVELS[levelIndex].key); run = { ...result, owner }; }
+    catch (error) { notice = `${error instanceof Error ? error.message : 'Classifica non disponibile.'} Prova valida solo per il record personale.`; }
+  }
+  if (generation !== currentGeneration || owner !== accountState().user?.id || !$<HTMLDialogElement>('trial-ready-dialog').open || document.hidden) {
+    trialStarting = false;
+    if (generation === currentGeneration) {
+      $<HTMLButtonElement>('begin-trial').disabled = false;
+      $('trial-ready-status').textContent = 'La partenza è stata interrotta. Premi Inizia quando sei pronto.';
+    }
+    return;
+  }
+  trialStarting = false;
+  onlineRun = run;
+  trial = new TimeTrial(); trial.start(performance.now());
+  $('trial-label').textContent = run ? 'PROVA ONLINE' : 'RECORD PERSONALE';
+  $('trial-clock').textContent = '00:00.000';
+  $('trial-status').hidden = false;
+  $('trial-status').classList.remove('trial-interrupted');
+  $('level-focus').textContent = notice || 'Segui le frecce. Il tempo scorre fino all’ultimo pezzo.';
+  $<HTMLDialogElement>('trial-ready-dialog').close();
+  renderer.domElement.focus({ preventScroll: true });
+  clearInterval(trialInterval);
+  trialInterval = setInterval(() => { if (trial?.running) $('trial-clock').textContent = formatTime(trial.elapsed(performance.now())); }, 67);
+  wakeRenderer();
+}
+
+const metagame = initMetagame({
+  getSave: () => savedGame,
+  screen: showScreen,
+  preview: previewRelic,
+  play: index => enterGame(index),
+  trial: prepareTimeTrial,
+  account: () => $('home-account').click(),
+});
 
 const gestures = new PointerGestureTracker();
 let orbitStart: THREE.Vector3 | null = null;
@@ -562,12 +725,12 @@ window.addEventListener('pointerup', event => {
 }, { capture: true });
 window.addEventListener('pointercancel', event => { gestures.cancel(event.pointerId); orbitStart = null; });
 renderer.domElement.addEventListener('lostpointercapture', event => gestures.cancel(event.pointerId));
-window.addEventListener('blur', () => { gestures.reset(); orbitStart = null; });
+window.addEventListener('blur', () => { gestures.reset(); orbitStart = null; interruptTrial('La finestra ha perso il fuoco.'); });
 renderer.domElement.addEventListener('keydown', event => {
-  if (screen !== 'game') return;
-  if (event.key === 'Enter') { event.preventDefault(); extract(); }
-  if (event.key.toLowerCase() === 'n') { event.preventDefault(); cyclePiece(); }
-  if (event.key === 'Escape') { event.preventDefault(); if (selected) selectPiece(null); else openPause(); }
+  if ((screen !== 'game' && screen !== 'collection') || document.querySelector('dialog[open]')) return;
+  if (event.key === 'Enter' && screen === 'game') { event.preventDefault(); extract(); }
+  if (event.key.toLowerCase() === 'n' && screen === 'game') { event.preventDefault(); cyclePiece(); }
+  if (event.key === 'Escape') { event.preventDefault(); if (screen === 'collection') showScreen('home'); else if (selected) selectPiece(null); else openPause(); }
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '-', '='].includes(event.key)) {
     event.preventDefault(); cameraTween = null;
     const spherical = new THREE.Spherical().setFromVector3(camera.position);
@@ -575,14 +738,16 @@ renderer.domElement.addEventListener('keydown', event => {
     if (event.key === 'ArrowRight') spherical.theta += 0.18;
     if (event.key === 'ArrowUp') spherical.phi = Math.max(0.06, spherical.phi - 0.18);
     if (event.key === 'ArrowDown') spherical.phi = Math.min(Math.PI - 0.06, spherical.phi + 0.18);
-    if (event.key === '+' || event.key === '=') spherical.radius = Math.max(4, spherical.radius * 0.9);
-    if (event.key === '-') spherical.radius = Math.min(24, spherical.radius * 1.1);
+    if (event.key === '+' || event.key === '=') spherical.radius = Math.max(controls.minDistance, spherical.radius * 0.9);
+    if (event.key === '-') spherical.radius = Math.min(controls.maxDistance, spherical.radius * 1.1);
     camera.position.setFromSpherical(spherical); controls.update();
-    if (event.key.startsWith('Arrow')) learnedRotation();
+    if (event.key.startsWith('Arrow') && screen === 'game') learnedRotation();
   }
 });
 $('play-game').addEventListener('click', continueGame);
 $('open-journey').addEventListener('click', () => showScreen('journey'));
+$('open-collection').addEventListener('click', () => metagame.openCollection());
+$('open-rankings').addEventListener('click', () => metagame.openRankings(levelIndex));
 $('back-home').addEventListener('click', () => showScreen('home'));
 $('pause-game').addEventListener('click', openPause);
 $('resume-game').addEventListener('click', () => {
@@ -591,6 +756,8 @@ $('resume-game').addEventListener('click', () => {
   if (!remaining.length) win();
 });
 $('pause-journey').addEventListener('click', () => showScreen('journey'));
+$('pause-collection').addEventListener('click', () => metagame.openCollection(levelIndex));
+$('pause-trial').addEventListener('click', () => prepareTimeTrial());
 $('pause-home').addEventListener('click', () => showScreen('home'));
 $('home-settings').addEventListener('click', openSettings);
 $('pause-settings').addEventListener('click', openSettings);
@@ -601,10 +768,11 @@ $('sound-toggle').addEventListener('click', () => {
   if (soundEnabled()) playSound('select');
 });
 document.querySelectorAll<HTMLDialogElement>('dialog').forEach(dialog => dialog.addEventListener('close', () => {
-  controls.enabled = screen === 'game' && !document.querySelector('dialog[open]');
+  controls.enabled = (screen === 'game' || screen === 'collection') && !document.querySelector('dialog[open]');
   wakeRenderer();
 }));
 $('hint').addEventListener('click', () => {
+  interruptTrial('Hai usato un suggerimento.');
   if (levelIndex === TUTORIAL_INDEX) { cyclePiece(); return; }
   const available = getAvailable(remaining);
   // Prefer a free piece nearest the current viewing angle.
@@ -615,6 +783,7 @@ $('view').addEventListener('click', () => resetView());
 $('restart').addEventListener('click', () => { closeDialogs(); loadLevel(levelIndex, true); renderer.domElement.focus({ preventScroll: true }); });
 $('undo').addEventListener('click', () => {
   if (!history.length) return;
+  interruptTrial('Hai annullato una mossa.');
   clearTimeout(completionTimer);
   const piece = history.pop()!;
   finishPieceAnimation(piece.id);
@@ -628,9 +797,17 @@ document.querySelector('#help-dialog .dialog-close')!.addEventListener('click', 
 $('start').addEventListener('click', () => $<HTMLDialogElement>('help-dialog').close());
 $('skip-tutorial').addEventListener('click', () => loadLevel(0));
 $('admire').addEventListener('click', () => $<HTMLDialogElement>('win-dialog').close());
-$('next-level').addEventListener('click', () => loadLevel(levelIndex === TUTORIAL_INDEX ? 0 : (levelIndex + 1) % 3, levelIndex === 2));
+$('next-level').addEventListener('click', () => {
+  if (levelIndex === CAMPAIGN_INDEXES.at(-1)) metagame.openCollection(levelIndex);
+  else loadLevel(levelIndex === TUTORIAL_INDEX ? 0 : levelIndex + 1);
+});
+$('win-collection').addEventListener('click', () => metagame.openCollection(levelIndex));
+$('win-trial').addEventListener('click', () => prepareTimeTrial());
+$('begin-trial').addEventListener('click', () => void beginTimeTrial());
+$('cancel-trial').addEventListener('click', () => $<HTMLDialogElement>('trial-ready-dialog').close());
 function resize() {
-  const bounds = $('scene').getBoundingClientRect();
+  const bounds = renderer.domElement.parentElement!.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return;
   const previousFit = Math.max(1, 1 / camera.aspect);
   camera.aspect = bounds.width / Math.max(bounds.height, 1); camera.updateProjectionMatrix();
   const fitRatio = Math.max(1, 1 / camera.aspect) / previousFit;
@@ -645,6 +822,7 @@ function resize() {
   wakeRenderer();
 }
 new ResizeObserver(resize).observe($('scene'));
+new ResizeObserver(resize).observe($('relic-stage'));
 
 function wakeRenderer() {
   idleFrames = 0;
@@ -690,6 +868,7 @@ function settleAnimations() {
 }
 
 function suspendGame() {
+  interruptTrial('La partita è passata in background.');
   settleAnimations();
   void persistGame();
   renderer.setAnimationLoop(null);
@@ -712,21 +891,22 @@ renderer.domElement.addEventListener('webglcontextrestored', () => { $('graphics
 async function startGame() {
   savedGame = await loadSave();
   completed = new Set(savedGame.completed);
-  resize(); loadLevel(savedGame.activeLevel);
+  resize(); loadLevel(Math.max(0, LEVELS.findIndex(level => level.key === savedGame.activeLevel)));
   ready = true; $('app').inert = false;
   createHomeSculpture(); showScreen('home'); initPwa();
-  initAccountUi(async () => { settleAnimations(); await persistGame(); });
+  initAccountUi(async () => { interruptTrial('È cambiata la sessione account.'); settleAnimations(); await persistGame(); });
   onAccountSaveChange(save => {
     // A replacement belongs to the new account: never persist the previous board.
     ready = false;
     settleAnimations();
     savedGame = save;
     completed = new Set(save.completed);
-    loadLevel(save.activeLevel);
+    loadLevel(Math.max(0, LEVELS.findIndex(level => level.key === save.activeLevel)));
     showScreen('home');
     ready = true;
     wakeRenderer();
   });
+  subscribeAccount(() => { if (screen === 'collection' || screen === 'rankings') metagame.refresh(); });
   if (Capacitor.isNativePlatform()) {
     await App.addListener('appStateChange', ({ isActive }) => {
       appActive = isActive;
@@ -737,7 +917,7 @@ async function startGame() {
     await App.addListener('backButton', async () => {
       const dialog = [...document.querySelectorAll<HTMLDialogElement>('dialog[open]')].at(-1);
       if (dialog) { dialog.close(); return; }
-      if (screen === 'journey') { showScreen('home'); return; }
+      if (screen === 'journey' || screen === 'collection' || screen === 'rankings') { showScreen('home'); return; }
       if (screen === 'game') { openPause(); return; }
       suspendGame();
       await persistGame();

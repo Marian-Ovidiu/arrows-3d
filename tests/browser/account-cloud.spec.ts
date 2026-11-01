@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 test('account sync, profile, logout isolation and deletion failure/retry', async ({ page }) => {
   test.skip(!process.env.SVELA_ACCOUNT_TEST, 'Requires the isolated configured test build');
   const user = { id: '00000000-0000-4000-8000-000000000001', email: 'amica@example.test', aud: 'authenticated', role: 'authenticated', created_at: new Date().toISOString(), app_metadata: {provider:'google'}, user_metadata: {full_name:'Amica'} };
-  const save = {version:1,activeLevel:3,completed:[],levels:{},tutorial:{rotated:true,blockedSeen:false}};
+  const save = {version:2,activeLevel:'tutorial-v1',completed:[],levels:{},bestTimes:{},tutorial:{rotated:true,blockedSeen:false}};
   let cloud: { save: any; revision: number; updated_at: string } = {save,revision:1,updated_at:new Date().toISOString()};
   let deleted = false; let failDeletion = true;
   await page.addInitScript(({user}) => {
@@ -38,7 +38,7 @@ test('account sync, profile, logout isolation and deletion failure/retry', async
   await page.locator('#play-game').click();
   await page.locator('canvas').focus(); await page.keyboard.press('n'); await page.keyboard.press('Enter');
   await expect(page.locator('#progress-label')).toHaveText('1 / 4');
-  await expect.poll(() => cloud.save.levels['3']?.removedIds.length).toBe(1);
+  await expect.poll(() => cloud.save.levels['tutorial-v1']?.removedIds.length).toBe(1);
   await page.locator('#pause-game').click(); await page.locator('#pause-home').click();
   await page.locator('#home-account').click();
   // A different device has reset its own snapshot; no maximum-progress merge is permitted.

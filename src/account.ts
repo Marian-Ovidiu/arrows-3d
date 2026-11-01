@@ -64,7 +64,7 @@ async function bounded<T>(promise: PromiseLike<T>, timeout = 10_000): Promise<T>
 }
 function progress(value: unknown): CloudProgress {
   const record = value as { save?: SaveState; revision?: number; updated_at?: string } | null;
-  if (!record || !Number.isSafeInteger(record.revision) || record.revision! < 1 || !record.save || record.save.version !== 1) throw new AccountRemoteError('server');
+  if (!record || !Number.isSafeInteger(record.revision) || record.revision! < 1 || !record.save || ![1, 2].includes(record.save.version)) throw new AccountRemoteError('server');
   return { save: cleanSave(record.save), revision: record.revision!, updated_at: record.updated_at };
 }
 const backend: ProgressBackend = {
@@ -232,3 +232,30 @@ export const updateDisplayName = (name: string): Promise<void> => action(async (
 export const syncAccount = (): Promise<void> => manager.sync();
 export const resolveAccountConflict = (choice: 'local' | 'cloud'): Promise<void> => manager.resolve(choice);
 export const importGuestProgress = (): Promise<void> => manager.importGuest();
+
+export type AccountFeatureErrorCode = 'configured' | 'guest' | 'offline' | 'migration' | 'invalid' | 'server';
+export class AccountFeatureError extends Error {
+  constructor(public readonly code: AccountFeatureErrorCode, message: string) { super(message); this.name = 'AccountFeatureError'; }
+}
+/** Shared authenticated, bounded RPC transport; never exposes a service credential. */
+export async function accountRpc<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+  if (!configured) throw new AccountFeatureError('configured', 'Le classifiche online non sono ancora configurate.');
+  await initializeAccount();
+  const owner = manager.state.user?.id;
+  if (!owner || !client) throw new AccountFeatureError('guest', 'Accedi per partecipare alle classifiche.');
+  try {
+    const { data, error } = await bounded(client.rpc(name, args));
+    if (owner !== manager.state.user?.id) throw new AccountFeatureError('guest', 'L’account è cambiato. Riprova dopo l’accesso.');
+    if (error) {
+      if (['PGRST202', '42883', '42P01'].includes(error.code)) throw new AccountFeatureError('migration', 'Le classifiche richiedono l’aggiornamento del database.');
+      if (!error.code && /fetch|network|offline|abort/i.test(error.message)) throw new AccountFeatureError('offline', 'Connessione assente. I progressi restano salvati su questo dispositivo.');
+      if (['28000', 'PGRST301', 'PGRST302'].includes(error.code)) throw new AccountFeatureError('guest', 'La sessione è scaduta. Accedi nuovamente.');
+      if (error.code === '22023') throw new AccountFeatureError('invalid', 'La prova non è valida o è scaduta. Avviane una nuova.');
+      throw new AccountFeatureError('server', 'Impossibile aggiornare la classifica. Riprova.');
+    }
+    return data as T;
+  } catch (error) {
+    if (error instanceof AccountFeatureError) throw error;
+    throw new AccountFeatureError('offline', 'Connessione assente. I progressi restano salvati su questo dispositivo.');
+  }
+}

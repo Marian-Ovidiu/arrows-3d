@@ -1,0 +1,125 @@
+-- Run as database owner AFTER both migrations. No remote or real-user fixture IDs.
+-- All fixtures, submitted discoveries, clock manipulation and deletion roll back.
+begin;
+insert into auth.users(id,aud,role,email,raw_user_meta_data) values
+('8f19325e-1fa4-488b-8301-6d2bc230f101','authenticated','authenticated','campaign-a@example.invalid','{"display_name":"<Esploratrice>"}'),
+('8f19325e-1fa4-488b-8301-6d2bc230f102','authenticated','authenticated','campaign-b@example.invalid','{}');
+insert into auth.sessions(id,user_id) values
+('8f19325e-1fa4-488b-8301-6d2bc230a101','8f19325e-1fa4-488b-8301-6d2bc230f101'),
+('8f19325e-1fa4-488b-8301-6d2bc230a102','8f19325e-1fa4-488b-8301-6d2bc230f101'),
+('8f19325e-1fa4-488b-8301-6d2bc230a103','8f19325e-1fa4-488b-8301-6d2bc230f102');
+-- SOLUTION_FIXTURES_BEGIN
+select pg_catalog.set_config('test.solutions','{"bosco-01-v1":["bosco-01-v1:-1,-1,-1","bosco-01-v1:1,1,1","bosco-01-v1:-1,-1,1","bosco-01-v1:1,1,-1","bosco-01-v1:-1,1,1","bosco-01-v1:1,-1,1","bosco-01-v1:-1,1,-1","bosco-01-v1:1,-1,-1"],"bosco-02-v1":["bosco-02-v1:0,2,0","bosco-02-v1:-1,-1,0","bosco-02-v1:0,-2,0","bosco-02-v1:0,1,0","bosco-02-v1:-1,0,0","bosco-02-v1:0,-1,0","bosco-02-v1:-1,1,0","bosco-02-v1:1,-1,0","bosco-02-v1:1,1,0","bosco-02-v1:1,0,0"],"bosco-03-v1":["bosco-03-v1:0,2,0","bosco-03-v1:0,-2,0","bosco-03-v1:1,1,1","bosco-03-v1:0,1,0","bosco-03-v1:1,1,0","bosco-03-v1:0,-1,0","bosco-03-v1:0,1,1","bosco-03-v1:1,1,-1","bosco-03-v1:-1,1,0","bosco-03-v1:-1,1,1","bosco-03-v1:-1,1,-1","bosco-03-v1:0,1,-1"],"bosco-04-v1":["bosco-04-v1:-1,0,-1","bosco-04-v1:0,2,0","bosco-04-v1:-2,0,0","bosco-04-v1:2,0,0","bosco-04-v1:1,-1,0","bosco-04-v1:0,-2,0","bosco-04-v1:0,1,1","bosco-04-v1:0,1,-1","bosco-04-v1:1,0,-1","bosco-04-v1:-1,-1,0","bosco-04-v1:-1,0,1","bosco-04-v1:0,-1,-1","bosco-04-v1:-1,1,0","bosco-04-v1:1,0,1","bosco-04-v1:1,1,0","bosco-04-v1:0,-1,1"],"bosco-05-v1":["bosco-05-v1:1,1,-1","bosco-05-v1:0,2,0","bosco-05-v1:-1,0,1","bosco-05-v1:1,0,-1","bosco-05-v1:-1,0,0","bosco-05-v1:-1,1,1","bosco-05-v1:0,0,1","bosco-05-v1:0,0,-1","bosco-05-v1:1,0,0","bosco-05-v1:0,1,-1","bosco-05-v1:1,1,0","bosco-05-v1:-1,1,-1","bosco-05-v1:0,1,0","bosco-05-v1:1,1,1","bosco-05-v1:-1,0,-1","bosco-05-v1:-1,1,0","bosco-05-v1:0,1,1","bosco-05-v1:1,0,1"],"osservatorio-01-v1":["osservatorio-01-v1:0,0,-2","osservatorio-01-v1:0,2,0","osservatorio-01-v1:-2,0,0","osservatorio-01-v1:2,0,0","osservatorio-01-v1:-1,-1,0","osservatorio-01-v1:0,-2,0","osservatorio-01-v1:0,1,1","osservatorio-01-v1:1,0,1","osservatorio-01-v1:0,0,2","osservatorio-01-v1:1,0,0","osservatorio-01-v1:0,0,1","osservatorio-01-v1:1,0,-1","osservatorio-01-v1:0,-1,1","osservatorio-01-v1:0,0,-1","osservatorio-01-v1:0,-1,0","osservatorio-01-v1:-1,0,-1","osservatorio-01-v1:0,-1,-1","osservatorio-01-v1:1,-1,0","osservatorio-01-v1:0,1,-1","osservatorio-01-v1:-1,0,0","osservatorio-01-v1:-1,1,0","osservatorio-01-v1:0,1,0","osservatorio-01-v1:-1,0,1","osservatorio-01-v1:1,1,0"],"osservatorio-02-v1":["osservatorio-02-v1:-1,1,-1","osservatorio-02-v1:1,0,-1","osservatorio-02-v1:0,2,0","osservatorio-02-v1:-1,-1,0","osservatorio-02-v1:0,-2,0","osservatorio-02-v1:0,0,-1","osservatorio-02-v1:-1,0,0","osservatorio-02-v1:-1,0,-1","osservatorio-02-v1:-1,1,0","osservatorio-02-v1:-1,-1,-1","osservatorio-02-v1:0,1,0","osservatorio-02-v1:-1,0,1","osservatorio-02-v1:0,-1,-1","osservatorio-02-v1:1,1,0","osservatorio-02-v1:0,0,1","osservatorio-02-v1:-1,-1,1","osservatorio-02-v1:0,1,-1","osservatorio-02-v1:-1,1,1","osservatorio-02-v1:1,0,1","osservatorio-02-v1:0,-1,1","osservatorio-02-v1:1,1,-1","osservatorio-02-v1:1,0,0","osservatorio-02-v1:1,-1,-1","osservatorio-02-v1:1,-1,0","osservatorio-02-v1:1,1,1","osservatorio-02-v1:0,-1,0","osservatorio-02-v1:0,1,1","osservatorio-02-v1:1,-1,1"],"osservatorio-03-v1":["osservatorio-03-v1:0,0,-1","osservatorio-03-v1:0,-2,-1","osservatorio-03-v1:-1,-2,0","osservatorio-03-v1:-1,2,1","osservatorio-03-v1:0,-1,1","osservatorio-03-v1:-1,-2,1","osservatorio-03-v1:-1,0,-1","osservatorio-03-v1:-1,-1,0","osservatorio-03-v1:0,-1,0","osservatorio-03-v1:0,-2,0","osservatorio-03-v1:0,-2,1","osservatorio-03-v1:-1,0,0","osservatorio-03-v1:-2,-1,0","osservatorio-03-v1:-1,1,0","osservatorio-03-v1:-1,0,1","osservatorio-03-v1:-1,2,0","osservatorio-03-v1:0,0,1","osservatorio-03-v1:-1,2,-1","osservatorio-03-v1:0,2,0","osservatorio-03-v1:0,2,-1","osservatorio-03-v1:-1,1,-1","osservatorio-03-v1:0,1,0","osservatorio-03-v1:0,1,-1","osservatorio-03-v1:-1,-1,-1","osservatorio-03-v1:-2,1,0","osservatorio-03-v1:0,2,1","osservatorio-03-v1:-1,1,1","osservatorio-03-v1:0,-1,-1","osservatorio-03-v1:-1,-2,-1","osservatorio-03-v1:-2,0,0","osservatorio-03-v1:0,1,1","osservatorio-03-v1:-1,-1,1"],"osservatorio-04-v1":["osservatorio-04-v1:-2,2,-1","osservatorio-04-v1:1,2,-1","osservatorio-04-v1:-2,2,1","osservatorio-04-v1:0,2,1","osservatorio-04-v1:-2,-2,1","osservatorio-04-v1:0,2,-1","osservatorio-04-v1:1,-2,-1","osservatorio-04-v1:1,2,1","osservatorio-04-v1:-1,-2,1","osservatorio-04-v1:-1,2,1","osservatorio-04-v1:1,-2,1","osservatorio-04-v1:2,-2,1","osservatorio-04-v1:2,-2,-1","osservatorio-04-v1:2,-1,-1","osservatorio-04-v1:-1,-2,-1","osservatorio-04-v1:2,0,-1","osservatorio-04-v1:-2,-2,-1","osservatorio-04-v1:2,-1,1","osservatorio-04-v1:2,1,-1","osservatorio-04-v1:-2,-1,-1","osservatorio-04-v1:2,0,1","osservatorio-04-v1:2,2,-1","osservatorio-04-v1:-2,0,-1","osservatorio-04-v1:2,1,1","osservatorio-04-v1:-2,-1,1","osservatorio-04-v1:-1,2,-1","osservatorio-04-v1:-2,1,-1","osservatorio-04-v1:2,2,1","osservatorio-04-v1:-2,1,1","osservatorio-04-v1:-2,0,1"],"osservatorio-05-v1":["osservatorio-05-v1:-1,0,-2","osservatorio-05-v1:2,0,-2","osservatorio-05-v1:0,2,0","osservatorio-05-v1:0,-2,0","osservatorio-05-v1:-1,1,1","osservatorio-05-v1:0,0,2","osservatorio-05-v1:1,0,-2","osservatorio-05-v1:0,1,1","osservatorio-05-v1:0,0,-2","osservatorio-05-v1:1,1,1","osservatorio-05-v1:-2,0,-2","osservatorio-05-v1:1,-1,1","osservatorio-05-v1:-2,0,-1","osservatorio-05-v1:1,-1,0","osservatorio-05-v1:2,0,-1","osservatorio-05-v1:1,-1,-1","osservatorio-05-v1:-2,0,0","osservatorio-05-v1:1,1,-1","osservatorio-05-v1:0,-1,-1","osservatorio-05-v1:2,0,0","osservatorio-05-v1:0,1,-1","osservatorio-05-v1:-1,-1,-1","osservatorio-05-v1:1,1,0","osservatorio-05-v1:2,0,1","osservatorio-05-v1:-1,-1,0","osservatorio-05-v1:-2,0,1","osservatorio-05-v1:2,0,2","osservatorio-05-v1:-1,1,0","osservatorio-05-v1:0,-1,0","osservatorio-05-v1:-1,-1,1","osservatorio-05-v1:-2,0,2","osservatorio-05-v1:1,0,2","osservatorio-05-v1:-1,1,-1","osservatorio-05-v1:0,1,0","osservatorio-05-v1:0,-1,1","osservatorio-05-v1:-1,0,2"],"archivio-01-v1":["archivio-01-v1:-1,2,-2","archivio-01-v1:1,2,-2","archivio-01-v1:-2,2,-1","archivio-01-v1:2,-2,-1","archivio-01-v1:2,2,1","archivio-01-v1:-2,2,2","archivio-01-v1:0,2,2","archivio-01-v1:-2,0,2","archivio-01-v1:0,2,-2","archivio-01-v1:-1,-2,-2","archivio-01-v1:1,-2,-2","archivio-01-v1:2,2,-1","archivio-01-v1:-2,-2,-1","archivio-01-v1:2,-2,1","archivio-01-v1:1,2,2","archivio-01-v1:2,0,2","archivio-01-v1:2,0,-2","archivio-01-v1:-2,-2,1","archivio-01-v1:-1,-2,2","archivio-01-v1:1,-2,2","archivio-01-v1:-2,0,-2","archivio-01-v1:-2,2,1","archivio-01-v1:-1,2,2","archivio-01-v1:-2,2,0","archivio-01-v1:-2,2,-2","archivio-01-v1:2,2,-2","archivio-01-v1:-2,1,-2","archivio-01-v1:2,1,-2","archivio-01-v1:-2,1,2","archivio-01-v1:2,-1,-2","archivio-01-v1:2,1,2","archivio-01-v1:-2,-1,2","archivio-01-v1:2,-2,-2","archivio-01-v1:0,-2,-2","archivio-01-v1:2,-2,0","archivio-01-v1:-2,-2,-2","archivio-01-v1:2,2,0","archivio-01-v1:-2,-2,0","archivio-01-v1:2,-2,2","archivio-01-v1:-2,-1,-2","archivio-01-v1:2,2,2","archivio-01-v1:2,-1,2","archivio-01-v1:-2,-2,2","archivio-01-v1:0,-2,2"],"archivio-02-v1":["archivio-02-v1:1,1,-1","archivio-02-v1:1,-1,-1","archivio-02-v1:0,-2,-1","archivio-02-v1:-1,2,0","archivio-02-v1:-1,0,1","archivio-02-v1:-1,-2,1","archivio-02-v1:-1,1,-1","archivio-02-v1:-1,0,0","archivio-02-v1:-1,-2,0","archivio-02-v1:-1,1,1","archivio-02-v1:-1,-2,-1","archivio-02-v1:0,-2,0","archivio-02-v1:1,1,1","archivio-02-v1:0,-1,0","archivio-02-v1:1,-2,0","archivio-02-v1:0,-2,1","archivio-02-v1:0,0,1","archivio-02-v1:1,-2,1","archivio-02-v1:0,2,1","archivio-02-v1:1,0,1","archivio-02-v1:1,-1,1","archivio-02-v1:0,2,0","archivio-02-v1:1,2,1","archivio-02-v1:-1,-1,1","archivio-02-v1:0,2,-1","archivio-02-v1:-1,-1,-1","archivio-02-v1:1,2,0","archivio-02-v1:0,1,0","archivio-02-v1:1,2,-1","archivio-02-v1:0,0,-1","archivio-02-v1:1,0,0","archivio-02-v1:-1,2,-1","archivio-02-v1:1,0,-1","archivio-02-v1:-1,0,-1","archivio-02-v1:1,-2,-1","archivio-02-v1:-1,2,1"],"archivio-03-v1":["archivio-03-v1:0,2,-1","archivio-03-v1:1,2,-1","archivio-03-v1:-2,-1,-1","archivio-03-v1:-1,-2,0","archivio-03-v1:-2,2,1","archivio-03-v1:2,1,1","archivio-03-v1:2,-1,1","archivio-03-v1:-1,-2,1","archivio-03-v1:-1,2,0","archivio-03-v1:0,2,0","archivio-03-v1:1,2,0","archivio-03-v1:2,1,0","archivio-03-v1:-2,-1,0","archivio-03-v1:-1,2,1","archivio-03-v1:-1,2,-1","archivio-03-v1:2,1,-1","archivio-03-v1:2,-1,0","archivio-03-v1:0,2,1","archivio-03-v1:1,2,1","archivio-03-v1:-2,-1,1","archivio-03-v1:-2,1,-1","archivio-03-v1:2,-1,-1","archivio-03-v1:-1,-2,-1","archivio-03-v1:0,-2,1","archivio-03-v1:1,-2,1","archivio-03-v1:-2,1,0","archivio-03-v1:0,-2,0","archivio-03-v1:1,-2,0","archivio-03-v1:0,-2,-1","archivio-03-v1:1,-2,-1","archivio-03-v1:-2,1,1","archivio-03-v1:-2,0,1","archivio-03-v1:-2,-2,1","archivio-03-v1:2,-2,1","archivio-03-v1:2,0,1","archivio-03-v1:2,0,0","archivio-03-v1:2,2,1","archivio-03-v1:2,0,-1","archivio-03-v1:2,2,0","archivio-03-v1:2,2,-1","archivio-03-v1:-2,0,-1","archivio-03-v1:2,-2,0","archivio-03-v1:-2,2,-1","archivio-03-v1:2,-2,-1","archivio-03-v1:-2,0,0","archivio-03-v1:-2,-2,0","archivio-03-v1:-2,-2,-1","archivio-03-v1:-2,2,0"],"archivio-04-v1":["archivio-04-v1:0,1,-2","archivio-04-v1:-1,0,-2","archivio-04-v1:-1,-1,-1","archivio-04-v1:-1,2,0","archivio-04-v1:-2,-1,0","archivio-04-v1:2,-1,0","archivio-04-v1:-1,-2,0","archivio-04-v1:-2,0,1","archivio-04-v1:-1,-1,1","archivio-04-v1:0,-2,1","archivio-04-v1:-2,0,0","archivio-04-v1:0,-2,0","archivio-04-v1:0,-1,1","archivio-04-v1:-2,0,-1","archivio-04-v1:-1,0,0","archivio-04-v1:0,-1,0","archivio-04-v1:0,0,1","archivio-04-v1:1,-1,1","archivio-04-v1:-1,0,-1","archivio-04-v1:0,1,1","archivio-04-v1:-1,1,-1","archivio-04-v1:0,2,1","archivio-04-v1:0,2,0","archivio-04-v1:0,2,-1","archivio-04-v1:1,2,0","archivio-04-v1:0,1,0","archivio-04-v1:0,1,-1","archivio-04-v1:0,0,-1","archivio-04-v1:0,1,2","archivio-04-v1:1,0,-1","archivio-04-v1:0,-1,-1","archivio-04-v1:0,0,2","archivio-04-v1:2,0,-1","archivio-04-v1:0,-2,-1","archivio-04-v1:0,-1,2","archivio-04-v1:0,-1,-2","archivio-04-v1:2,0,0","archivio-04-v1:0,0,-2","archivio-04-v1:2,1,0","archivio-04-v1:1,0,0","archivio-04-v1:2,0,1","archivio-04-v1:1,0,-2","archivio-04-v1:1,1,0","archivio-04-v1:1,0,1","archivio-04-v1:-1,1,0","archivio-04-v1:1,-1,0","archivio-04-v1:1,1,1","archivio-04-v1:-1,0,1","archivio-04-v1:1,0,2","archivio-04-v1:1,1,-1","archivio-04-v1:1,-1,-1","archivio-04-v1:-2,1,0","archivio-04-v1:-1,-1,0","archivio-04-v1:1,-2,0","archivio-04-v1:-1,1,1","archivio-04-v1:-1,0,2"],"archivio-05-v1":["archivio-05-v1:0,1,-2","archivio-05-v1:0,2,-1","archivio-05-v1:-2,1,-1","archivio-05-v1:-1,1,-1","archivio-05-v1:2,1,-1","archivio-05-v1:2,0,-1","archivio-05-v1:0,-2,-1","archivio-05-v1:2,1,0","archivio-05-v1:-1,-2,0","archivio-05-v1:1,1,1","archivio-05-v1:-1,0,2","archivio-05-v1:0,-1,2","archivio-05-v1:1,1,0","archivio-05-v1:2,1,1","archivio-05-v1:-1,0,1","archivio-05-v1:0,1,0","archivio-05-v1:0,1,1","archivio-05-v1:-1,1,0","archivio-05-v1:-2,1,0","archivio-05-v1:-2,0,0","archivio-05-v1:-1,0,0","archivio-05-v1:-2,-1,0","archivio-05-v1:-1,0,-1","archivio-05-v1:-1,-1,0","archivio-05-v1:-1,0,-2","archivio-05-v1:-1,-1,-1","archivio-05-v1:-1,2,0","archivio-05-v1:0,-1,0","archivio-05-v1:0,0,-2","archivio-05-v1:0,2,0","archivio-05-v1:1,-1,0","archivio-05-v1:-1,-1,1","archivio-05-v1:1,0,-2","archivio-05-v1:0,0,-1","archivio-05-v1:1,2,0","archivio-05-v1:2,-1,0","archivio-05-v1:-1,1,1","archivio-05-v1:1,0,-1","archivio-05-v1:2,0,0","archivio-05-v1:-2,0,-1","archivio-05-v1:1,0,0","archivio-05-v1:2,0,1","archivio-05-v1:1,-2,0","archivio-05-v1:-2,0,1","archivio-05-v1:1,0,1","archivio-05-v1:2,-1,1","archivio-05-v1:2,-1,-1","archivio-05-v1:0,-2,0","archivio-05-v1:1,-1,1","archivio-05-v1:1,0,2","archivio-05-v1:1,-1,-1","archivio-05-v1:0,-1,1","archivio-05-v1:0,-2,1","archivio-05-v1:0,0,2","archivio-05-v1:1,1,-1","archivio-05-v1:0,-1,-1","archivio-05-v1:0,0,1","archivio-05-v1:-2,-1,1","archivio-05-v1:0,1,2","archivio-05-v1:0,-1,-2","archivio-05-v1:0,1,-1","archivio-05-v1:-2,-1,-1","archivio-05-v1:0,2,1","archivio-05-v1:-2,1,1"]}',true);
+-- SOLUTION_FIXTURES_END
+select pg_catalog.set_config('test.save','{"version":2,"activeLevel":"bosco-01-v1","completed":[],"levels":{},"bestTimes":{},"tutorial":{"rotated":false,"blockedSeen":false}}',true);
+
+do $$
+begin
+  if (select count(*) from svela_private.puzzle_catalog) <> 16 then raise exception 'Missing catalog seed'; end if;
+  if pg_catalog.has_schema_privilege('authenticated','svela_private','USAGE') or pg_catalog.has_schema_privilege('anon','svela_private','USAGE') then raise exception 'Private schema exposed'; end if;
+  if pg_catalog.has_function_privilege('anon','public.submit_discovery(text,jsonb)','EXECUTE') or pg_catalog.has_function_privilege('service_role','public.finish_timed_run(uuid,jsonb)','EXECUTE') or pg_catalog.has_function_privilege('authenticated','svela_private.verify_solution(text,jsonb)','EXECUTE') then raise exception 'Unexpected function grants'; end if;
+  if exists(select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='svela_private' and c.relkind='r' and not c.relrowsecurity) then raise exception 'Missing RLS'; end if;
+  if exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in('get_leaderboard','submit_discovery','start_timed_run','finish_timed_run','save_game_progress') and (not p.prosecdef or not ('search_path=""'=any(p.proconfig)))) then raise exception 'Unpinned privileged RPC'; end if;
+  -- A synthetic inward ray would hit the core even with no other pieces.
+  insert into svela_private.puzzle_catalog values('sql-test-core','test',true,'[{"id":"core-ray","position":[1,0,0],"direction":[-1,0,0]}]');
+  if svela_private.verify_solution('sql-test-core','["core-ray"]') then raise exception 'Core ignored'; end if;
+  delete from svela_private.puzzle_catalog where level_key='sql-test-core';
+end;
+$$;
+set local role authenticated;
+select pg_catalog.set_config('request.jwt.claims','{"sub":"8f19325e-1fa4-488b-8301-6d2bc230f101","role":"authenticated","session_id":"8f19325e-1fa4-488b-8301-6d2bc230a101"}',true);
+do $$
+declare v_rejected boolean; v_solution jsonb := current_setting('test.solutions')::jsonb->'bosco-01-v1'; v_bad jsonb; v_result jsonb; v_save jsonb := current_setting('test.save')::jsonb;
+begin
+  begin perform public.start_timed_run('bosco-01-v1'); raise exception 'Undiscovered run allowed'; exception when invalid_parameter_value then null; end;
+  for v_bad in select value from jsonb_array_elements(jsonb_build_array('[]'::jsonb, 'null'::jsonb, '["unknown"]'::jsonb, jsonb_set(v_solution,'{1}',v_solution->0), v_solution - 0)) loop
+    v_rejected:=false;
+    begin perform public.submit_discovery('bosco-01-v1',v_bad); exception when invalid_parameter_value then v_rejected:=true; end;
+    if not v_rejected then raise exception 'Invalid solution accepted'; end if;
+  end loop;
+  perform public.submit_discovery('bosco-01-v1',v_solution);
+  perform public.submit_discovery('bosco-01-v1',v_solution);
+  if (select value from public.get_leaderboard('discoveries') where is_you) <> 1 then raise exception 'Duplicate discovery counted'; end if;
+  if (select name from public.get_leaderboard('discoveries') where is_you) <> '<Esploratrice>' then raise exception 'Public display name missing'; end if;
+  -- Claims in ordinary saves cannot forge verified leaderboard achievements/times.
+  v_save:=v_save || jsonb_build_object('completed',jsonb_build_array('archivio-05-v1'),'bestTimes','{"archivio-05-v1":1}'::jsonb,'levels',jsonb_build_object('bosco-01-v1',jsonb_build_object('removedIds','[]'::jsonb,'solutionIds',v_solution)));
+  v_result:=public.save_game_progress(v_save,0);
+  if v_result->'ok' <> 'true'::jsonb then raise exception 'Version 2 save failed'; end if;
+  if (select value from public.get_leaderboard('discoveries') where is_you) <> 1 or exists(select 1 from public.get_leaderboard('time','archivio-05-v1')) then raise exception 'Untrusted snapshot affected leaderboard'; end if;
+  if public.save_game_progress(v_save,0)->'ok' <> 'false'::jsonb then raise exception 'CAS bypass'; end if;
+  begin perform public.save_game_progress(jsonb_set(v_save,'{bestTimes}','{"bosco-01-v1":0}'),1); raise exception 'Zero best accepted'; exception when invalid_parameter_value then null; end;
+  begin perform public.save_game_progress(jsonb_set(v_save,'{levels}','{"bosco-01-v1":{"removedIds":[],"solutionIds":1}}'),1); raise exception 'Malformed proof accepted'; exception when invalid_parameter_value then null; end;
+  -- Earlier applications retain their v1 wire contract.
+  v_result:=public.save_game_progress('{"version":1,"activeLevel":3,"completed":[],"levels":{},"tutorial":{"rotated":true,"blockedSeen":false}}',1);
+  if v_result->'ok' <> 'true'::jsonb then raise exception 'Version 1 compatibility failed'; end if;
+  perform set_config('test.old_run',public.start_timed_run('bosco-01-v1')->>'id',true);
+  perform set_config('test.run',public.start_timed_run('bosco-01-v1')->>'id',true);
+  begin perform public.finish_timed_run(current_setting('test.old_run')::uuid,v_solution); raise exception 'Replaced run accepted'; exception when invalid_parameter_value then null; end;
+  begin perform public.get_leaderboard('time',null); raise exception 'Missing time level accepted'; exception when invalid_parameter_value then null; end;
+  begin perform public.get_leaderboard('discoveries',null,51); raise exception 'Unbounded page accepted'; exception when invalid_parameter_value then null; end;
+end;
+$$;
+-- Same account, another authenticated session cannot finish its first session's run.
+select set_config('request.jwt.claims','{"sub":"8f19325e-1fa4-488b-8301-6d2bc230f101","role":"authenticated","session_id":"8f19325e-1fa4-488b-8301-6d2bc230a102"}',true);
+do $$ begin
+  begin perform public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1'); raise exception 'Foreign session accepted'; exception when invalid_parameter_value then null; end;
+end $$;
+select set_config('request.jwt.claims','{"sub":"8f19325e-1fa4-488b-8301-6d2bc230f102","role":"authenticated","session_id":"8f19325e-1fa4-488b-8301-6d2bc230a103"}',true);
+do $$ begin
+  begin perform public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1'); raise exception 'Foreign owner accepted'; exception when invalid_parameter_value then null; end;
+  perform public.submit_discovery('bosco-01-v1',current_setting('test.solutions')::jsonb->'bosco-01-v1');
+  if not exists(select 1 from public.get_leaderboard('discoveries') where is_you and name like 'Esploratore %') then raise exception 'Private pseudonym fallback absent'; end if;
+end $$;
+reset role;
+update svela_private.timed_runs set started_at=clock_timestamp()-interval '5 seconds' where id=current_setting('test.run')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"8f19325e-1fa4-488b-8301-6d2bc230f101","role":"authenticated","session_id":"8f19325e-1fa4-488b-8301-6d2bc230a101"}',true);
+do $$
+declare v_result jsonb; v_pair record;
+begin
+  begin perform public.finish_timed_run(current_setting('test.run')::uuid,'[]'); raise exception 'Incomplete timed proof accepted'; exception when invalid_parameter_value then null; end;
+  v_result:=public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1');
+  if (v_result->>'elapsed_ms')::int not between 5000 and 15000 or v_result->'best_ms'<>v_result->'elapsed_ms' then raise exception 'Server clock not used: %',v_result; end if;
+  perform set_config('test.best',v_result->>'best_ms',true);
+  begin perform public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1'); raise exception 'Replayed run accepted'; exception when invalid_parameter_value then null; end;
+  for v_pair in select key,value from jsonb_each(current_setting('test.solutions')::jsonb) loop perform public.submit_discovery(v_pair.key,v_pair.value); end loop;
+  if (select value from public.get_leaderboard('discoveries') where is_you) <> 15 then raise exception 'Full catalog proof failed'; end if;
+  perform set_config('test.run',public.start_timed_run('bosco-01-v1')->>'id',true);
+end $$;
+reset role;
+update svela_private.timed_runs set started_at=clock_timestamp()-interval '20 seconds' where id=current_setting('test.run')::uuid;
+set local role authenticated;
+do $$ declare v_result jsonb; begin
+  v_result:=public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1');
+  if v_result->>'best_ms' <> current_setting('test.best') then raise exception 'Slower run overwrote minimum'; end if;
+  perform set_config('test.run',public.start_timed_run('bosco-01-v1')->>'id',true);
+end $$;
+reset role;
+update svela_private.timed_runs set started_at=clock_timestamp()-interval '25 hours' where id=current_setting('test.run')::uuid;
+set local role authenticated;
+do $$ begin
+  begin perform public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1'); raise exception 'Expired run accepted'; exception when invalid_parameter_value then null; end;
+end $$;
+reset role;
+delete from auth.sessions where id='8f19325e-1fa4-488b-8301-6d2bc230a101';
+set local role authenticated;
+do $$ begin
+  begin perform public.start_timed_run('bosco-01-v1'); raise exception 'Revoked session started run'; exception when invalid_authorization_specification then null; end;
+  begin perform public.finish_timed_run(current_setting('test.run')::uuid,current_setting('test.solutions')::jsonb->'bosco-01-v1'); raise exception 'Revoked session finished run'; exception when invalid_authorization_specification then null; end;
+  perform public.delete_own_account();
+  begin perform public.submit_discovery('bosco-01-v1',current_setting('test.solutions')::jsonb->'bosco-01-v1'); raise exception 'Deleted account submitted discovery'; exception when invalid_authorization_specification then null; end;
+  begin perform public.get_leaderboard('discoveries'); raise exception 'Deleted account read rankings'; exception when invalid_authorization_specification then null; end;
+end $$;
+reset role;
+do $$ begin
+  if exists(select 1 from svela_private.verified_discoveries where user_id='8f19325e-1fa4-488b-8301-6d2bc230f101') or exists(select 1 from svela_private.level_bests where user_id='8f19325e-1fa4-488b-8301-6d2bc230f101') or exists(select 1 from svela_private.timed_runs where user_id='8f19325e-1fa4-488b-8301-6d2bc230f101') then raise exception 'Deletion did not cascade'; end if;
+  if not exists(select 1 from svela_private.verified_discoveries where user_id='8f19325e-1fa4-488b-8301-6d2bc230f102') then raise exception 'Deletion affected other user'; end if;
+end $$;
+set local role anon;
+do $$ begin
+  begin perform public.get_leaderboard('discoveries'); raise exception 'Guest read accepted'; exception when insufficient_privilege then null; end;
+  begin perform public.submit_discovery('bosco-01-v1','[]'); raise exception 'Guest write accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+rollback;
+-- Success: all assertions pass and fixture users, sessions and rankings disappear.

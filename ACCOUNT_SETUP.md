@@ -1,10 +1,14 @@
 # Account Google e progressi con Supabase
 
-La versione web/PWA supporta accesso Google, nome modificabile, sincronizzazione, uscita e cancellazione definitiva dell’account. Senza configurazione si gioca come ospite. Non sono state inserite credenziali né pubblicato il progetto.
+Database configurato sul progetto Supabase **arrows-3d** (`gkocwhaxvxpbvmiulsso`), migrazione remota `20261030163554_accounts`. Test SQL eseguiti e passati sul progetto, con fixture annullate tramite ROLLBACK.
+
+La versione web/PWA supporta accesso Google, nome modificabile, sincronizzazione, uscita e cancellazione definitiva dell’account. Senza configurazione si gioca come ospite. URL e publishable key sono configurati in `.env.local` e nelle variabili Vercel di produzione e sviluppo. Le preview restano separate. Il provider Google è abilitato e il redeploy Vercel di produzione è completato. Site URL e redirect verso https://arrows-3d.vercel.app/ verificati il 30 ottobre 2026 con un nuovo flusso OAuth e ritorno di annullamento. Il login completo con un account Google personale va provato dal giocatore.
 
 ## 1. Crea il progetto Supabase
 
-Nel pannello Supabase crea un progetto e apri **SQL Editor**. Esegui il file `supabase/migrations/202610300001_accounts.sql`. Con Supabase CLI puoi usare `supabase db push` dopo aver collegato il progetto.
+**Già eseguito sul progetto arrows-3d. Non rieseguire la migrazione su quel database.** Le istruzioni seguenti servono per un eventuale nuovo progetto.
+
+Nel pannello Supabase crea un progetto e apri **SQL Editor**. Esegui il file `supabase/migrations/20261030163554_accounts.sql`. Con Supabase CLI puoi usare `supabase db push` dopo aver collegato il progetto.
 
 La migrazione crea `game_progress`, protetta da Row Level Security: ciascun utente legge soltanto il proprio salvataggio. Le scritture passano dalla funzione `save_game_progress`, che confronta la revisione e segnala un conflitto invece di sovrascrivere una partita più recente. `delete_own_account()` cancella l’utente autenticato e i suoi progressi, usando l’identità del token e senza accettare ID dal browser. Le funzioni vanno create come proprietario del database, come avviene nel SQL Editor del progetto.
 
@@ -81,6 +85,12 @@ npm run build
 
 `supabase/tests/accounts.sql` contiene verifiche SQL transazionali per isolamento tra utenti, scritture vietate, revisioni, validazione e cancellazione. Eseguilo come proprietario del database su un progetto di test dopo la migrazione; termina con ROLLBACK. Le prove automatiche con risposte simulate non sostituiscono una prova reale di accesso Google sul dominio finale, da completare dopo l’inserimento delle credenziali.
 
-Verificato localmente: build, 41 test di logica, 17 test browser del gioco e un test browser account con API simulate. I test SQL non sono stati eseguiti: l’avvio del PostgreSQL temporaneo è stato bloccato dai permessi della sandbox. Nessun database reale è stato modificato.
+Verificato localmente: build, 41 test di logica, 17 test browser del gioco e un test browser account con API simulate. I test SQL sono stati eseguiti e superati il 30 ottobre 2026 sul progetto Supabase collegato; nessun utente o salvataggio di prova è rimasto nel database.
 
 Riferimenti ufficiali: [Google con Supabase](https://supabase.com/docs/guides/auth/social-login/auth-google), [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), [dati utente](https://supabase.com/docs/guides/auth/managing-user-data).
+
+## Controlli del database collegato
+
+Verificati sul database reale: isolamento RLS fra due utenti, accesso del proprietario, CAS e rifiuto revisioni obsolete, validazione dei dati, scritture dirette vietate, RPC vietate agli anonimi, cancellazione e blocco dei token di utenti eliminati. Le richieste HTTP senza sessione a tabella e cancellazione rispondono 401. Advisor performance senza segnalazioni.
+
+L’advisor sicurezza segnala intenzionalmente due funzioni SECURITY DEFINER accessibili agli autenticati: `save_game_progress` e `delete_own_account`. Sono gli endpoint previsti dal gioco; non accettano ID utente, ricavano il proprietario da `auth.uid()`, impostano un search_path vuoto e negano EXECUTE a PUBLIC/anon. I test confermano l’isolamento. Il privilegio è necessario per applicare il CAS senza concedere scritture dirette e per cancellare il solo utente autenticato. [Spiegazione del controllo Supabase](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).

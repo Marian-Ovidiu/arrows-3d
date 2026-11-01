@@ -98,7 +98,7 @@ test('new player learns rotation, free light and blocking with actual touch inpu
   await expect(page.locator('[data-level="0"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#tutorial-card')).toBeHidden();
   await expectCompactUi(page);
-  await expectProgress(page, 0, 26);
+  await expectProgress(page, 0, LEVELS[0].pieces.length);
   expect(errors).toEqual([]);
 });
 
@@ -136,8 +136,8 @@ test('introduction can be skipped, resumed, undone and restarted independently',
   await page.locator('#skip-tutorial').click();
   await page.locator('#hint').click();
   await page.locator('canvas').focus(); await page.keyboard.press('Enter');
-  await expectProgress(page, 1, 26);
-  await chooseLevel(page, 3);
+  await expectProgress(page, 1, LEVELS[0].pieces.length);
+  await chooseLevel(page, TUTORIAL_INDEX);
   await expect(page.locator('#tutorial-card')).toHaveAttribute('data-step', 'rotate');
   await page.locator('canvas').focus(); await page.keyboard.press('ArrowRight');
   await tapCube(page, 'intro-first'); await tapCube(page, 'intro-first');
@@ -147,11 +147,11 @@ test('introduction can be skipped, resumed, undone and restarted independently',
   await restartLevel(page);
   await expect(page.locator('#tutorial-card')).toHaveAttribute('data-step', 'rotate');
   await chooseLevel(page, 0);
-  await expectProgress(page, 1, 26);
+  await expectProgress(page, 1, LEVELS[0].pieces.length);
   await page.reload();
   await continueGame(page);
   await expect(page.locator('[data-level="0"]')).toHaveAttribute('aria-pressed', 'true');
-  await expectProgress(page, 1, 26);
+  await expectProgress(page, 1, LEVELS[0].pieces.length);
 });
 
 test('guide and controls remain usable on narrow phones, desktop and landscape', async ({ page }) => {

@@ -1,12 +1,15 @@
 import { test, expect } from '@playwright/test';
 
-test('guest can open account without configuration and continue without losing progress', async ({ page }) => {
+test('guest can open account and continue without losing progress', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.locator('#home-account').click();
   await expect(page.locator('#account-dialog')).toBeVisible();
-  await expect(page.locator('#google-login')).toBeDisabled();
-  await expect(page.locator('#account-status')).toContainText('disponibili presto');
+  if ((await page.locator('#account-status').textContent())?.includes('disponibili presto')) {
+    await expect(page.locator('#google-login')).toBeDisabled();
+  } else {
+    await expect(page.locator('#google-login')).toBeEnabled();
+  }
   await page.screenshot({ path: 'test-results/account-phone.png' });
   await page.locator('#account-play-guest').click();
   await page.locator('#play-game').click();
