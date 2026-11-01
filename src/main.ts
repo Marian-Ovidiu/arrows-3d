@@ -22,6 +22,7 @@ import { createRelic } from './relics';
 import { initMetagame, RARITIES } from './metagame-ui';
 import { TimeTrial, formatTime } from './time-trial';
 import { submitDiscovery, startTimedRun, finishTimedRun } from './leaderboard';
+import { ChapterEnvironment } from './chapter-environment';
 
 const icons = {
   pause: '<path d="M8 5v14M16 5v14"/>',
@@ -119,6 +120,11 @@ function persistGame() {
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 80);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const chapterEnvironment = new ChapterEnvironment({ onChange: () => {
+  $('app').dataset.environmentSource = chapterEnvironment.scene.userData.source ?? 'none';
+  wakeRenderer();
+} });
+let environmentEnabled = false;
 const mobileGraphics = matchMedia('(pointer: coarse)').matches || Capacitor.isNativePlatform();
 renderer.setPixelRatio(Math.min(devicePixelRatio, mobileGraphics ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
@@ -253,6 +259,7 @@ function showScreen(next: typeof screen) {
   closeDialogs();
   screen = next;
   $('app').dataset.screen = next;
+  updateAtmosphere();
   $('app').classList.toggle('is-tutorial', next === 'game' && levelIndex === TUTORIAL_INDEX);
   $('home-screen').hidden = next !== 'home';
   $('journey-screen').hidden = next !== 'journey';
@@ -397,6 +404,7 @@ function learnedRotation() {
 function updateProgress() {
   wakeRenderer();
   const level = LEVELS[levelIndex];
+  chapterEnvironment.setRevealed(remaining.length === 0);
   const removed = level.pieces.length - remaining.length;
   $('progress-label').textContent = `${removed} / ${level.pieces.length}`;
   $('progress-label').setAttribute('aria-label', `${removed} di ${level.pieces.length} pezzi liberati`);
@@ -576,6 +584,8 @@ function loadLevel(index: number, restart = false) {
   history = removedIds.map(id => LEVELS[index].pieces.find(piece => piece.id === id)!);
   const removed = new Set(removedIds);
   remaining = LEVELS[index].pieces.filter(piece => !removed.has(piece.id));
+  chapterEnvironment.setLevel(LEVELS[index]);
+  updateAtmosphere();
   remaining.forEach(createPiece); createReward();
   ground.position.y = groundHeight();
   resize(); resetView(false); selectPiece(null); updateProgress();
@@ -819,6 +829,7 @@ function resize() {
   controls.maxDistance = Math.max(24, defaultDistance() * 1.6);
   if (screen === 'home' && ready) setHomeCamera();
   renderer.setSize(bounds.width, bounds.height);
+  chapterEnvironment.resize(bounds.width, bounds.height);
   wakeRenderer();
 }
 new ResizeObserver(resize).observe($('scene'));
@@ -830,6 +841,12 @@ function wakeRenderer() {
   rendering = true;
   lastFrameTime = 0;
   renderer.setAnimationLoop(renderFrame);
+}
+
+function updateAtmosphere() {
+  const chapter = screen === 'game' ? LEVELS[levelIndex].chapter : 0;
+  $('app').dataset.chapter = String(chapter);
+  environmentEnabled = chapter > 0;
 }
 
 function renderFrame(time: number) {
@@ -852,7 +869,16 @@ function renderFrame(time: number) {
     homeSculpture.position.y = Math.sin(time * 0.0006) * 0.09;
   }
   if (screen === 'game' && !remaining.length && !reducedMotion && !modalOpen) reward.rotation.y += delta * 0.24;
-  controls.update(); renderer.render(scene, camera);
+  controls.update();
+  if (environmentEnabled) {
+    // Scenery is a background pass: it never covers a cube or enters hit testing.
+    renderer.autoClear = false;
+    renderer.clear();
+    renderer.render(chapterEnvironment.scene, chapterEnvironment.camera);
+    renderer.clearDepth();
+    renderer.render(scene, camera);
+    renderer.autoClear = true;
+  } else renderer.render(scene, camera);
   idleFrames++;
   if (idleFrames > 12 && animations.length === 0 && !cameraTween && (screen !== 'home' || reducedMotion || modalOpen) && (remaining.length > 0 || screen !== 'game' || reducedMotion || modalOpen)) {
     renderer.setAnimationLoop(null);

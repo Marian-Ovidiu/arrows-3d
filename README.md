@@ -48,6 +48,10 @@ Il percorso consiglia un ordine; il selettore permette di esplorare liberamente.
 
 La stanza delle reliquie mostra sagome per gli oggetti mancanti e sculture 3D ruotabili per quelli svelati, con nome, storia, rarità e record personale. Si può filtrare per rarità. Completare una serie aggiunge un piedistallo con miniature al visualizzatore. Ricominciare o annullare non toglie i reperti già ottenuti.
 
+Ogni capitolo ha un'atmosfera dedicata e due scenografie diverse modellate in Blender: tronco con funghi e pietra del sentiero nel Bosco; arco spezzato e sfera armillare nell'Osservatorio; portale e antichi volumi sospesi nell'Archivio. Restano ai margini e sono disegnate prima del puzzle, in una scena separata: non coprono i pezzi e non entrano nel raycasting o nelle collisioni. Non aggiungono animazioni continue o ombre. Alla scoperta del reperto diventano più tenui; tutorial, menu e collezione mantengono il proprio sfondo.
+
+I tre GLB locali pesano complessivamente 625.708 byte e non dipendono da texture o servizi esterni. Ogni capitolo usa 6–13 primitive e meno di 8.000 vertici. Il modello viene caricato al primo ingresso e riutilizzato; durante il caricamento o in caso di errore resta disponibile la decorazione procedurale. Il precache PWA comprende tutti i modelli per l'uso offline. Sorgente Blender, anteprima, script riproducibile e metriche sono descritti in [art/environments/README.md](art/environments/README.md).
+
 ## Prove a tempo e classifiche
 
 Dopo la prima scoperta di un livello si sblocca **Prova a tempo**, dalla collezione, dalla pausa e dalla vittoria. Il cronometro parte con **Inizia** e si ferma all'accettazione dell'ultima estrazione; le animazioni non allungano il record personale. Suggerimenti, annullamenti, pausa, cambio livello, perdita del fuoco o passaggio in background interrompono il tentativo. Si può continuare liberamente senza registrare un tempo. I record personali sono disponibili anche come ospite e offline.
@@ -79,6 +83,8 @@ L’integrazione Capacitor non registra il service worker. `node scripts/pwa-ass
 
 - `src/puzzle.ts`: catalogo versionato di 15 livelli, metadati delle reliquie, collisioni e risolutore, indipendenti dal rendering.
 - `src/relics.ts`: 15 sculture procedurali, contenute nella cella centrale.
+- `src/chapter-environment.ts`: decorazioni di capitolo e disposizione ai margini indipendente dalla camera orbitale.
+- `src/chapter-assets.ts`: caricamento dei GLB, istanze con materiali indipendenti e normalizzazione nello spazio protetto.
 - `src/metagame-ui.ts`: collezione, filtri, visualizzatore e classifiche.
 - `src/time-trial.ts`: durata e validità delle prove senza interruzioni.
 - `src/leaderboard.ts`: registrazione delle scoperte e prove online.
