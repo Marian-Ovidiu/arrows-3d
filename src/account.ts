@@ -3,6 +3,7 @@ import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
 import { AccountRemoteError, AccountSync, type AccountState, type AccountUser, type CloudProgress, type ProgressBackend } from './account-sync.ts';
 import { accountKey, cleanSave, type KeyValueStore } from './account-store.ts';
 import { createSaveState, type SaveState } from './save-state.ts';
+import { playerName } from './player-name.ts';
 export type { AccountState } from './account-sync.ts';
 
 declare global {
@@ -89,7 +90,7 @@ export const subscribeAccount = (listener: (state: AccountState) => void): (() =
 export const onAccountSaveChange = (listener: (save: SaveState) => void): (() => void) => manager.onSave(listener);
 export const writeAccountSave = (save: SaveState): void => manager.saveLocal(save);
 export const currentAccountSave = (): SaveState => manager.save;
-const userInfo = (user: User): AccountUser => ({ id: user.id, email: user.email ?? '', name: String(user.user_metadata.display_name ?? user.user_metadata.full_name ?? '').slice(0, 80) });
+const userInfo = (user: User): AccountUser => ({ id: user.id, email: user.email ?? '', name: playerName(user.user_metadata) });
 
 function cleanAuthUrl(): void {
   if (typeof window === 'undefined') return;

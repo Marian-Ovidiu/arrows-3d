@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 // All requests to that host are intercepted; no Google login or external accounts are used.
 test('account sync, profile, logout isolation and deletion failure/retry', async ({ page }) => {
   test.skip(!process.env.SVELA_ACCOUNT_TEST, 'Requires the isolated configured test build');
-  const user = { id: '00000000-0000-4000-8000-000000000001', email: 'amica@example.test', aud: 'authenticated', role: 'authenticated', created_at: new Date().toISOString(), app_metadata: {provider:'google'}, user_metadata: {full_name:'Amica'} };
+  const user = { id: '00000000-0000-4000-8000-000000000001', email: 'amica@example.test', aud: 'authenticated', role: 'authenticated', created_at: new Date().toISOString(), app_metadata: {provider:'google'}, user_metadata: {given_name:'Amica',full_name:'Amica Rossi'} };
   const save = {version:2,activeLevel:'tutorial-v1',completed:[],levels:{},bestTimes:{},tutorial:{rotated:true,blockedSeen:false}};
   let cloud: { save: any; revision: number; updated_at: string } = {save,revision:1,updated_at:new Date().toISOString()};
   let deleted = false; let failDeletion = true;
@@ -31,6 +31,7 @@ test('account sync, profile, logout isolation and deletion failure/retry', async
   await page.locator('#home-account').click();
   await expect(page.locator('#account-email')).toHaveText(user.email);
   await expect(page.locator('#account-status')).toContainText('sincronizzati');
+  await expect(page.locator('#account-name')).toHaveValue('Amica');
   await page.locator('#account-name').fill('Esploratrice');
   await page.getByRole('button',{name:'Salva nome',exact:true}).click();
   await expect(page.locator('#account-name')).toHaveValue('Esploratrice');

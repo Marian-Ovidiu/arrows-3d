@@ -61,7 +61,7 @@ Le classifiche online richiedono un account e la nuova migrazione SQL:
 - **Esploratori**: numero di livelli distinti completati con soluzione verificata. I replay non aumentano il conteggio e i punteggi uguali condividono la posizione.
 - **Tempi per livello**: migliore prova registrata dal server per quel puzzle. Partenza, durata, proprietà del tentativo e soluzione completa sono verificati sul server. I tentativi sono monouso, associati alla sessione e sostituiti dall'avvio di un altro.
 
-Il tempo online comprende la comunicazione di partenza e arrivo al server e può differire dal cronometro personale. Queste verifiche respingono tempi arbitrari e sequenze illegali; non proteggono da bot che risolvono automaticamente il puzzle. I nomi pubblici sono quelli scelti nel profilo o pseudonimi; le classifiche non espongono email. Non ci sono partecipanti o punteggi simulati nell'app. Attivazione e test sono descritti in [CAMPAIGN_SETUP.md](CAMPAIGN_SETUP.md).
+Il tempo online comprende la comunicazione di partenza e arrivo al server e può differire dal cronometro personale. Queste verifiche respingono tempi arbitrari e sequenze illegali; non proteggono da bot che risolvono automaticamente il puzzle. Il nome pubblico è modificabile dal menu account. Inizialmente si usa il solo nome Google (`given_name`, oppure la prima parola del nome completo); un soprannome scelto nel gioco ha sempre precedenza. Senza un nome disponibile si usa uno pseudonimo. Le classifiche non espongono email. Non ci sono partecipanti o punteggi simulati nell'app. Attivazione e test sono descritti in [CAMPAIGN_SETUP.md](CAMPAIGN_SETUP.md).
 
 ## Primi passi
 

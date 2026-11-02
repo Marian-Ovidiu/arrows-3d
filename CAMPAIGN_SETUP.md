@@ -5,7 +5,7 @@ La campagna e i record personali funzionano senza un server. La sincronizzazione
 1. `supabase/migrations/20261030163554_accounts.sql`
 2. `supabase/migrations/20261101162235_fantasy_campaign_rankings.sql`
 
-Su un progetto già configurato basta applicare la seconda. Con un progetto collegato alla CLI:
+La migrazione `20261102090348_google_first_name.sql` aggiorna inoltre i nomi pubblici: soprannome scelto, altrimenti solo nome Google, infine pseudonimo. Non modifica i dati degli utenti. Su un progetto già configurato si applicano solo le migrazioni mancanti. Con un progetto collegato alla CLI:
 
 ```sh
 supabase db push
