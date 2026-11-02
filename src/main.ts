@@ -1091,6 +1091,15 @@ async function startGame() {
   if (!reducedMotion) animations.push({ start: performance.now(), duration: 900, update: t => homeSculpture.scale.setScalar(0.7 + smooth(t) * 0.3) });
   initAccountUi(async () => { interruptTrial('È cambiata la sessione account.'); settleAnimations(); await persistGame(); });
   onAccountSaveChange(save => {
+    const key = LEVELS[levelIndex].key;
+    const board = history.map(piece => piece.id).join();
+    if (screen === 'game' && save.activeLevel === key && (save.levels[key]?.removedIds ?? []).join() === board) {
+      // Same board on screen: take the new progress quietly and keep playing.
+      savedGame = save;
+      completed = new Set(save.completed);
+      updateProgress();
+      return;
+    }
     // A replacement belongs to the new account: never persist the previous board.
     ready = false;
     settleAnimations();

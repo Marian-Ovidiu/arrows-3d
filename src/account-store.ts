@@ -5,7 +5,10 @@ export const ACCOUNT_PREFIX = 'svela-account-v1:';
 export interface KeyValueStore { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
 export interface AccountCache { save: SaveState; revision: number; dirty: boolean; editId: string }
 export const cleanSave = (save: SaveState): SaveState => parseSaveState(JSON.stringify(save));
-export const sameSave = (a: SaveState, b: SaveState): boolean => JSON.stringify(a) === JSON.stringify(b);
+/** Key order is not meaning: Postgres jsonb returns objects re-sorted. Array order still counts. */
+const canonical = (value: unknown): string => JSON.stringify(value, (_, item: unknown) =>
+  item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : item);
+export const sameSave = (a: SaveState, b: SaveState): boolean => canonical(a) === canonical(b);
 export const accountKey = (id: string): string => ACCOUNT_PREFIX + encodeURIComponent(id);
 export function readGuest(store: KeyValueStore): SaveState {
   try {

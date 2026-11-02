@@ -255,3 +255,29 @@ test('no-op persistence neither dirties a clean cache nor starts an upload', asy
   assert.equal(backend.writes.length, 0);
   engine.suspend();
 });
+
+/** Postgres jsonb returns object keys sorted by length, then bytewise. */
+function jsonbOrder<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(jsonbOrder) as T;
+  if (!value || typeof value !== 'object') return value;
+  const entries = Object.entries(value).sort(([a], [b]) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0));
+  return Object.fromEntries(entries.map(([key, item]) => [key, jsonbOrder(item)])) as T;
+}
+
+test('a server that only reorders object keys does not reload the running game', async () => {
+  const { engine, backend } = setup();
+  const write = backend.write.bind(backend);
+  backend.write = async (save, revision) => jsonbOrder(await write(save, revision));
+  await engine.setUser(user('a'));
+  let reloads = 0;
+  engine.onSave(() => reloads++);
+  // Played in this order: the tutorial first, then the first campaign level.
+  const local: SaveState = { ...save(0), levels: { [levelKey(15)]: { removedIds: [] }, [levelKey(0)]: { removedIds: [] } }, bestTimes: {} };
+  engine.saveLocal(local);
+  await engine.sync();
+  engine.saveLocal({ ...local, levels: { ...local.levels, [levelKey(1)]: { removedIds: [] } }, activeLevel: levelKey(1) });
+  await engine.sync();
+  assert.equal(backend.writes.length, 2);
+  assert.equal(reloads, 0);
+  engine.suspend();
+});
