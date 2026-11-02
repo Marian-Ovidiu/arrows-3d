@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { LEVELS, CAMPAIGN_INDEXES, TUTORIAL_INDEX, solve } from '../../src/puzzle';
+import { LEVELS, CHAPTERS, CAMPAIGN_INDEXES, TUTORIAL_INDEX, solve } from '../../src/puzzle';
 import { chooseLevel, continueGame } from './navigation';
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -28,20 +28,20 @@ async function solveWithoutAssistance(page: Page, index = 0, count = Infinity) {
   }, { ids: level.pieces.map(piece => piece.id), order });
 }
 
-test('all fifteen discoveries and locked relic shelves fit phone and desktop', async ({ page }) => {
+test('all fifty discoveries and locked relic shelves fit phone and desktop', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.locator('#tab-journey').click();
-  await expect(page.locator('[data-level]')).toHaveCount(16);
-  await expect(page.locator('.journey-chapter')).toHaveCount(3);
+  await expect(page.locator('[data-level]')).toHaveCount(LEVELS.length);
+  await expect(page.locator('.journey-chapter')).toHaveCount(CHAPTERS.length);
   await page.locator('[data-level="14"]').click();
   await expect(page.locator('#progress-label')).toHaveText(`0 / ${LEVELS[14].pieces.length}`);
   await page.screenshot({ path: 'test-results/campaign-last-phone.png' });
   await page.locator('#pause-game').click();
   await page.locator('#pause-collection').click();
-  await expect(page.locator('#collection-progress')).toHaveText('0 / 15 reperti svelati · 0 / 3 collezioni complete');
-  await expect(page.locator('[data-relic]')).toHaveCount(15);
+  await expect(page.locator('#collection-progress')).toHaveText('0 / 50 reperti svelati · 0 / 10 collezioni complete');
+  await expect(page.locator('[data-relic]')).toHaveCount(CAMPAIGN_INDEXES.length);
   await expect(page.locator('.is-discovered')).toHaveCount(0);
   await expect(page.locator('#relic-trial')).toBeHidden();
   await expect(page.locator('#relic-stage canvas')).toBeVisible();
@@ -62,7 +62,7 @@ test('all fifteen discoveries and locked relic shelves fit phone and desktop', a
   await page.locator('#relic-close').click();
   await expect(page.locator('#relic-detail')).toBeHidden();
   await page.locator('[data-rarity="epic"]').click();
-  await expect(page.locator('[data-relic]')).toHaveCount(1);
+  await expect(page.locator('[data-relic]')).toHaveCount(CAMPAIGN_INDEXES.filter(index => LEVELS[index].rarity === 'epic').length);
   await page.locator('[data-relic="14"]').click();
   await expect(page.locator('#relic-name')).toHaveText('Una meraviglia da svelare');
   await page.locator('#relic-play').click();
@@ -96,7 +96,7 @@ test('discovering a relic unlocks its sculpture and time trial permanently throu
   await page.locator('#tab-collection').click();
   await page.locator('[data-relic="0"]').click();
   await expect(page.locator('#relic-record')).toContainText('Record personale');
-  await expect(page.locator('#collection-progress')).toContainText('1 / 15');
+  await expect(page.locator('#collection-progress')).toContainText('1 / 50');
   await page.locator('#relic-trial').click();
   await page.locator('#begin-trial').click();
   await page.locator('#hint').click();
@@ -151,14 +151,14 @@ test('guest rankings show personal progress and explain online participation wit
 test('completed chapters build their miniature display and the last level leads to the collection', async ({ page }) => {
   const completed = LEVELS.map(level => level.key);
   const levels = Object.fromEntries(LEVELS.map(level => [level.key, { removedIds: solve(level.pieces)! }]));
-  await page.addInitScript(save => { if (!localStorage.getItem('svela-save-v1')) localStorage.setItem('svela-save-v1', JSON.stringify(save)); }, { version: 2, activeLevel: LEVELS[14].key, completed, levels, bestTimes: {}, tutorial: { rotated: true, blockedSeen: true } });
+  await page.addInitScript(save => { if (!localStorage.getItem('svela-save-v1')) localStorage.setItem('svela-save-v1', JSON.stringify(save)); }, { version: 2, activeLevel: LEVELS[CAMPAIGN_INDEXES.at(-1)!].key, completed, levels, bestTimes: {}, tutorial: { rotated: true, blockedSeen: true } });
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.goto('/');
   await page.locator('#play-game').click();
   await expect(page.locator('#collection-screen')).toBeVisible();
-  await expect(page.locator('#collection-progress')).toHaveText('15 / 15 reperti svelati · 3 / 3 collezioni complete');
-  await expect(page.locator('.shelf-complete')).toHaveCount(3);
-  await expect(page.locator('#relic-name')).toHaveText(LEVELS[14].artifact);
+  await expect(page.locator('#collection-progress')).toHaveText('50 / 50 reperti svelati · 10 / 10 collezioni complete');
+  await expect(page.locator('.shelf-complete')).toHaveCount(CHAPTERS.length);
+  await expect(page.locator('#relic-name')).toHaveText(LEVELS[CAMPAIGN_INDEXES.at(-1)!].artifact);
   await expect(page.locator('#relic-rarity')).toHaveText('Epico');
   await page.screenshot({ path: 'test-results/collection-complete-desktop.png' });
 });
@@ -173,7 +173,7 @@ test('legacy demo migration preserves the tutorial and starts the new collection
   await expect(page.locator('#progress-label')).toHaveText(`0 / ${LEVELS[0].pieces.length}`);
   await page.locator('#pause-game').click();
   await page.locator('#pause-collection').click();
-  await expect(page.locator('#collection-progress')).toContainText('0 / 15');
+  await expect(page.locator('#collection-progress')).toContainText('0 / 50');
   const save = await page.evaluate(() => JSON.parse(localStorage.getItem('svela-save-v1')!));
   expect(save.version).toBe(2);
   expect(save.completed).toEqual([LEVELS[TUTORIAL_INDEX].key]);

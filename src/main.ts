@@ -468,7 +468,7 @@ function previewRelic(level: Level, discovered: boolean) {
   }
   const chapter = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === level.chapter);
   if (chapter.every(index => completed.has(LEVELS[index].key))) {
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.57, 0.62, 0.1, 40), new THREE.MeshStandardMaterial({ color: level.chapter === 1 ? 0x8eae91 : level.chapter === 2 ? 0x94afb8 : 0xb7a0ba, roughness: 0.8 }));
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.57, 0.62, 0.1, 40), new THREE.MeshStandardMaterial({ color: [0x8eae91, 0x94afb8, 0xb7a0ba, 0x9bb897, 0xc19b7c, 0xa8b8c9, 0x89b5bf, 0x7dafb2, 0xb4bd9b, 0xc4b181][level.chapter - 1] ?? 0xb7a0ba, roughness: 0.8 }));
     pedestal.position.y = -0.56; gallery.add(pedestal);
     chapter.forEach((index, order) => {
       const miniature = createRelic(LEVELS[index].reward);

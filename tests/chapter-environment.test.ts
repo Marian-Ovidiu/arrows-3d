@@ -7,9 +7,11 @@ import { readFile } from 'node:fs/promises';
 import { setImmediate } from 'node:timers/promises';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+const chapterSamples = Array.from({ length: 10 }, (_, index) => ({ key: `scenery-chapter-${index + 1}`, chapter: index + 1, pieces: [] }));
+
 test('actual scenery geometry stays outside the protected screen region on phones and wide screens', () => {
   const environment = new ChapterEnvironment();
-  for (const level of LEVELS.filter(level => level.chapter > 0)) {
+  for (const level of [...LEVELS.filter(level => level.chapter > 0), ...chapterSamples]) {
     environment.setLevel(level);
     for (const aspect of [0.45, 0.66, 1, 1.2, 2.8]) {
       environment.resize(aspect * 1000, 1000);
@@ -30,22 +32,51 @@ test('actual scenery geometry stays outside the protected screen region on phone
 
 test('only the current chapter is allocated and scenery has a bounded mobile rendering cost', () => {
   const environment = new ChapterEnvironment();
-  for (const index of [0,5,10,14,0]) {
-    environment.setLevel(LEVELS[index]);
+  for (const level of [...chapterSamples, chapterSamples[0]]) {
+    environment.setLevel(level);
     let meshes = 0, vertices = 0;
     environment.scene.traverse(object => {
       if (!(object instanceof THREE.Mesh)) return;
       meshes++;
       vertices += object.geometry.getAttribute('position').count;
+      const positions = object.geometry.getAttribute('position');
+      for (let index = 0; index < positions.array.length; index++) assert.ok(Number.isFinite(positions.array[index]));
       assert.equal(object.castShadow, false);
       assert.equal(object.receiveShadow, false);
     });
-    assert.ok(meshes >= 6 && meshes <= 8);
+    assert.ok(meshes >= 6 && meshes <= 10, `${level.key}: ${meshes} draw calls`);
     assert.ok(vertices > 0 && vertices <= 10_000);
     assert.equal(environment.scene.children.filter(child => child instanceof THREE.Group).length, 2);
   }
   environment.setLevel(LEVELS[TUTORIAL_INDEX]);
   assert.equal(environment.scene.children.filter(child => child instanceof THREE.Group).length, 0);
+  environment.dispose();
+});
+
+test('expansion chapters use distinct procedural geometry without requesting absent models', async () => {
+  const calls: number[] = [];
+  const environment = new ChapterEnvironment({ loadAsset: async chapter => { calls.push(chapter); throw new Error('No model expected'); } });
+  const compositions = new Set<string>();
+  for (const level of chapterSamples.slice(3)) {
+    environment.setLevel(level);
+    await setImmediate();
+    assert.equal(environment.scene.userData.source, 'procedural');
+    assert.equal(environment.scene.userData.chapter, level.chapter);
+    const signature: number[] = [];
+    const outgoing: THREE.BufferGeometry[] = [];
+    environment.scene.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      signature.push(object.geometry.getAttribute('position').count);
+      outgoing.push(object.geometry);
+    });
+    assert.ok(!compositions.has(signature.join(',')), `${level.key}: duplicated scenery`);
+    compositions.add(signature.join(','));
+    let disposed = 0;
+    outgoing.forEach(geometry => geometry.addEventListener('dispose', () => disposed++));
+    environment.setLevel({ key: 'empty', chapter: 0, pieces: [] });
+    assert.equal(disposed, outgoing.length, `${level.key}: old scene geometry must be released`);
+  }
+  assert.deepEqual(calls, []);
   environment.dispose();
 });
 

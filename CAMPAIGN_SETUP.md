@@ -1,9 +1,11 @@
 # Campagna, collezione e classifiche
 
-La campagna e i record personali funzionano senza un server. La sincronizzazione v2 e le classifiche richiedono il progetto Supabase configurato in [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) e le due migrazioni in ordine:
+La campagna e i record personali funzionano senza un server. La sincronizzazione v2 e le classifiche richiedono il progetto Supabase configurato in [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) e le migrazioni in ordine:
 
 1. `supabase/migrations/20261030163554_accounts.sql`
 2. `supabase/migrations/20261101162235_fantasy_campaign_rankings.sql`
+3. `supabase/migrations/20261102090348_google_first_name.sql`
+4. `supabase/migrations/20261102102822_campaign_fifty_levels.sql`
 
 La migrazione `20261102090348_google_first_name.sql` aggiorna inoltre i nomi pubblici: soprannome scelto, altrimenti solo nome Google, infine pseudonimo. Non modifica i dati degli utenti. Su un progetto già configurato si applicano solo le migrazioni mancanti. Con un progetto collegato alla CLI:
 
@@ -51,7 +53,15 @@ Le chiavi dei livelli sono versionate e indipendenti dall'ordine del menu. Per a
 
 1. Aggiungi griglie e metadati in `src/puzzle.ts`, con una nuova chiave stabile e un capitolo.
 2. Verifica soluzione, numero di uscite iniziali e profondità delle dipendenze con i test del catalogo.
-3. Aggiungi gli stessi dati al catalogo autorevole tramite una nuova migrazione. `node scripts/export-catalog.mjs --print` stampa i dati da revisionare, senza modificare file; `--check` confronta il catalogo e le soluzioni con le fixture pubblicate. Non modificare una migrazione già applicata.
+3. Aggiungi gli stessi dati al catalogo autorevole tramite una nuova migrazione. `node scripts/export-catalog.mjs --print` stampa i dati da revisionare, senza modificare file; `--check` confronta il catalogo cumulativo di tutte le migrazioni e le soluzioni con le fixture pubblicate; `--fixtures` stampa le prove SQL aggiornate. L’esportazione rifiuta modifiche o rimozioni delle identità già pubblicate. Non modificare una migrazione già applicata.
 4. Se cambi frecce o geometria di un livello pubblicato, assegna una nuova chiave/versione: i suoi record devono confrontare lo stesso puzzle.
 
-Menu, filtri e selettori dei livelli derivano dal catalogo. I salvataggi accettano fino a 2 MB; il servizio limita ogni puzzle a 500 pezzi e le liste dei completamenti a 5.000 elementi. La stanza delle reliquie mostra tre serie iniziali; per cataloghi molto più grandi serviranno paginazione dei capitoli e un diverso budget di archiviazione, senza cambiare l'identità dei progressi esistenti.
+Menu, filtri e selettori dei livelli derivano dal catalogo. I salvataggi accettano fino a 2 MB; il servizio limita ogni puzzle a 500 pezzi e le liste dei completamenti a 5.000 elementi. La stanza delle reliquie mostra dieci serie da cinque reperti; per cataloghi molto più grandi serviranno paginazione dei capitoli e un diverso budget di archiviazione, senza cambiare l'identità dei progressi esistenti.
+
+## Distribuzione della campagna da 50 livelli
+
+Applicare la quarta migrazione prima di distribuire il nuovo frontend. Aggiunge solo i 35 puzzle nuovi: geometrie, chiavi e record dei primi 15 e del tutorial restano invariati. Il formato di salvataggio rimane v2 e non richiede conversioni dei progressi esistenti.
+
+La RPC `save_game_progress` accetta inoltre `p_catalog_version`, inviato dal client attuale. Se un salvataggio contiene progressi dei nuovi capitoli, un client precedente non può sovrascriverlo eliminandoli. Gli errori di revisione continuano a restituire il conflitto normale; una scelta esplicita del client aggiornato può ancora sostituire il proprio salvataggio. I client precedenti possono continuare a salvare finché l’account non contiene riferimenti ai nuovi livelli.
+
+Verifiche aggiuntive: `node scripts/export-catalog.mjs --check`, `supabase/tests/expansion.sql` e `tests/browser/expansion.spec.ts`. I test SQL vanno eseguiti dopo tutte le migrazioni, su un database di test; terminano con `ROLLBACK`.

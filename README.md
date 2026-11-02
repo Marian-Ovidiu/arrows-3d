@@ -1,6 +1,6 @@
 # Svela — demo di un puzzle spaziale
 
-Puzzle realizzato con TypeScript, Three.js e Vite, con progetto Android Capacitor 8. Un'introduzione giocabile di quattro cubi precede una campagna di **15 livelli curati**, da 8 a 64 pezzi. Ogni figura custodisce una reliquia fantastica da collezionare. Per compilare l'app Android senza aprire finestre, vedi [ANDROID.md](ANDROID.md).
+Puzzle realizzato con TypeScript, Three.js e Vite, con progetto Android Capacitor 8. Un'introduzione giocabile di quattro cubi precede una campagna di **50 livelli curati**, da 8 a 64 pezzi. Ogni figura custodisce una reliquia fantastica da collezionare. Per compilare l'app Android senza aprire finestre, vedi [ANDROID.md](ANDROID.md).
 
 ## Avvio
 
@@ -38,17 +38,29 @@ Il menu account permette accesso Google, modifica del nome, uscita, sincronizzaz
 
 ## Campagna e reliquie
 
-Tre capitoli da cinque livelli introducono lettura delle frecce, dipendenze tra pezzi e incastri su più lati:
+Dieci capitoli da cinque livelli introducono lettura delle frecce, dipendenze tra pezzi e incastri su più lati. I primi tre mantengono i puzzle originali:
 
 - **Bosco dei sussurri**, 8–18 pezzi: seme, foglia, fungo lanterna, talismano e spirito.
 - **Osservatorio perduto**, 24–36 pezzi: bussola, cristallo, luna, pianeta e astrolabio.
 - **Archivio dei mondi**, 36–64 pezzi: chiave, clessidra, portale, stella e un piccolo mondo.
 
-Il percorso consiglia un ordine; il selettore permette di esplorare liberamente. Il nucleo sigillato nasconde il reperto fino all'ultima estrazione. La rarità è prestabilita: 8 comuni, 4 insoliti, 2 rari (livelli 5 e 10) e 1 epico (livello 15).
+Sette nuovi capitoli proseguono il viaggio con figure fisse da 36 a 59 pezzi e pause fra le sfide:
+
+- **Giardini sospesi** (16–20): forme aperte, petali, ponti e cavità.
+- **Fucina degli echi** (21–25): rami e incroci fra le catene.
+- **Cittadella degli specchi** (26–30): cornici, simmetrie e torri.
+- **Abissi di cristallo** (31–35): coppe, gusci e strutture in profondità.
+- **Labirinto delle maree** (36–40): corridoi e allineamenti a distanza.
+- **Santuario dei venti** (41–45): strutture sottili e lunghe catene.
+- **Cuore dei mondi** (46–50): sintesi delle direzioni e finale della campagna.
+
+Il percorso consiglia un ordine; il selettore permette di esplorare liberamente. Il nucleo sigillato nasconde il reperto fino all'ultima estrazione. La rarità è prestabilita per ciascun reperto; i finali dei capitoli segnano le scoperte più preziose. I 15 reperti originali conservano la propria rarità.
 
 La stanza delle reliquie mostra sagome per gli oggetti mancanti e sculture 3D ruotabili per quelli svelati, con nome, storia, rarità e record personale. Si può filtrare per rarità. Completare una serie aggiunge un piedistallo con miniature al visualizzatore. Ricominciare o annullare non toglie i reperti già ottenuti.
 
 Ogni capitolo ha un'atmosfera dedicata e due scenografie diverse modellate in Blender: tronco con funghi e pietra del sentiero nel Bosco; arco spezzato e sfera armillare nell'Osservatorio; portale e antichi volumi sospesi nell'Archivio. Restano ai margini e sono disegnate prima del puzzle, in una scena separata: non coprono i pezzi e non entrano nel raycasting o nelle collisioni. Non aggiungono animazioni continue o ombre. Alla scoperta del reperto diventano più tenui; tutorial, menu e collezione mantengono il proprio sfondo.
+
+I capitoli 4–10 usano scenografie procedurali dedicate e aggregate in poche mesh: giardini e lanterne, forgia, torri e specchi, coralli, maree, strumenti del vento e santuario finale. Non richiedono modelli da scaricare e funzionano offline.
 
 I tre GLB locali pesano complessivamente 625.708 byte e non dipendono da texture o servizi esterni. Ogni capitolo usa 6–13 primitive e meno di 8.000 vertici. Il modello viene caricato al primo ingresso e riutilizzato; durante il caricamento o in caso di errore resta disponibile la decorazione procedurale. Il precache PWA comprende tutti i modelli per l'uso offline. Sorgente Blender, anteprima, script riproducibile e metriche sono descritti in [art/environments/README.md](art/environments/README.md).
 
@@ -81,8 +93,9 @@ L’integrazione Capacitor non registra il service worker. `node scripts/pwa-ass
 
 ## Struttura e regole
 
-- `src/puzzle.ts`: catalogo versionato di 15 livelli, metadati delle reliquie, collisioni e risolutore, indipendenti dal rendering.
-- `src/relics.ts`: 15 sculture procedurali, contenute nella cella centrale.
+- `scripts/author-campaign.mjs`: authoring offline riproducibile dei 35 nuovi diagrammi; non viene incluso nel gioco.
+- `src/puzzle.ts`: catalogo versionato di 50 livelli, metadati delle reliquie, collisioni e risolutore, indipendenti dal rendering.
+- `src/relics.ts`: 50 sculture procedurali, contenute nella cella centrale.
 - `src/chapter-environment.ts`: decorazioni di capitolo e disposizione ai margini indipendente dalla camera orbitale.
 - `src/chapter-assets.ts`: caricamento dei GLB, istanze con materiali indipendenti e normalizzazione nello spazio protetto.
 - `src/metagame-ui.ts`: collezione, filtri, visualizzatore e classifiche.
@@ -96,7 +109,7 @@ L’integrazione Capacitor non registra il service worker. `node scripts/pwa-ass
 - `src/pwa.ts`, `public/manifest.webmanifest` e `vite.config.ts`: installazione e cache offline versionata.
 - `src/save-state.ts` e `src/persistence.ts`: validazione e salvataggi versionati.
 - `android/` e `capacitor.config.ts`: progetto nativo e configurazione.
-- `tests/puzzle.test.ts`: integrità dei livelli, collisioni in tutte le direzioni, nucleo, soluzioni e 640 ordini di estrazione alternativi.
+- `tests/puzzle.test.ts`: integrità dei livelli, collisioni in tutte le direzioni, nucleo, soluzioni e 2.040 ordini di estrazione alternativi.
 
 Ogni pezzo occupa una cella intera e si muove lungo uno dei sei versi cartesiani. Un ostacolo su qualsiasi punto del percorso infinito impedisce l'uscita. La cella centrale è riservata all'oggetto e rimane un ostacolo. Le figure usano griglie e frecce fisse, verificate dal risolutore: esiste sempre una sequenza completa. Il catalogo si decodifica in tempo lineare senza cercare soluzioni durante il caricamento. Togliere pezzi non introduce nuovi ostacoli.
 

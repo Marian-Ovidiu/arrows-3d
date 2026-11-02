@@ -93,3 +93,22 @@ test('full solution proof survives reset and incomplete or illegal proof is disc
     assert.deepEqual(state.completed, []);
   }
 });
+
+test('expanded campaign histories and original fifteen-level saves round-trip without changing identities', () => {
+  const last = LEVELS.find(level => level.id === 50)!;
+  assert.ok(last);
+  const finalOrder = solve(last.pieces)!;
+  const previous = LEVELS.find(level => level.id === 15)!;
+  const previousOrder = solve(previous.pieces)!;
+  const raw = encode({ activeLevel: last.key, completed: [first.key, previous.key, tutorial.key], levels: {
+    [previous.key]: { removedIds: previousOrder.slice(0, 4) },
+    [last.key]: { removedIds: finalOrder.slice(0, 7), solutionIds: finalOrder },
+  }, bestTimes: { [first.key]: 12345, [last.key]: 98765 }, tutorial: { rotated: true, blockedSeen: true } });
+  const parsed = parseSaveState(raw);
+  assert.equal(parsed.activeLevel, last.key);
+  assert.deepEqual(parsed.levels[previous.key].removedIds, previousOrder.slice(0, 4));
+  assert.deepEqual(parsed.levels[last.key], { removedIds: finalOrder.slice(0, 7), solutionIds: finalOrder });
+  assert.ok(parsed.completed.includes(last.key));
+  assert.deepEqual(parsed.bestTimes, { [first.key]: 12345, [last.key]: 98765 });
+  assert.deepEqual(parseSaveState(JSON.stringify(parsed)), parsed);
+});

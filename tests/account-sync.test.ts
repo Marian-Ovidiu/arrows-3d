@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AccountSync, AccountRemoteError, type CloudProgress, type ProgressBackend } from '../src/account-sync.ts';
 import { accountKey, GUEST_KEY, readAccount, type KeyValueStore } from '../src/account-store.ts';
-import { LEVELS } from '../src/puzzle.ts';
+import { TUTORIAL_INDEX, LEVELS } from '../src/puzzle.ts';
 import { createSaveState, type SaveState } from '../src/save-state.ts';
 
 class MemoryStore implements KeyValueStore {
@@ -272,7 +272,7 @@ test('a server that only reorders object keys does not reload the running game',
   let reloads = 0;
   engine.onSave(() => reloads++);
   // Played in this order: the tutorial first, then the first campaign level.
-  const local: SaveState = { ...save(0), levels: { [levelKey(15)]: { removedIds: [] }, [levelKey(0)]: { removedIds: [] } }, bestTimes: {} };
+  const local: SaveState = { ...save(0), levels: { [LEVELS[TUTORIAL_INDEX].key]: { removedIds: [] }, [levelKey(0)]: { removedIds: [] } }, bestTimes: {} };
   engine.saveLocal(local);
   await engine.sync();
   engine.saveLocal({ ...local, levels: { ...local.levels, [levelKey(1)]: { removedIds: [] } }, activeLevel: levelKey(1) });

@@ -75,6 +75,20 @@ h1, h2, h3 { margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 700; }
 #app[data-screen=game][data-chapter="1"] { --g1: #317659; --g2: #163e2e; }
 #app[data-screen=game][data-chapter="2"] { --g1: #48529f; --g2: #222960; }
 #app[data-screen=game][data-chapter="3"] { --g1: #7a4b80; --g2: #33203c; }
+#app[data-screen=game][data-chapter="4"] { --g1: #4d8265; --g2: #233f3d; }
+.map-chapter[data-chapter="4"] { --chapter: #4d8265; --chapter-deep: #345c49; --chapter-bg: #233f3d; }
+#app[data-screen=game][data-chapter="5"] { --g1: #9b5638; --g2: #442a28; }
+.map-chapter[data-chapter="5"] { --chapter: #9b5638; --chapter-deep: #6c382c; --chapter-bg: #442a28; }
+#app[data-screen=game][data-chapter="6"] { --g1: #7274a1; --g2: #30324e; }
+.map-chapter[data-chapter="6"] { --chapter: #7274a1; --chapter-deep: #505574; --chapter-bg: #30324e; }
+#app[data-screen=game][data-chapter="7"] { --g1: #316c83; --g2: #17394e; }
+.map-chapter[data-chapter="7"] { --chapter: #316c83; --chapter-deep: #224d65; --chapter-bg: #17394e; }
+#app[data-screen=game][data-chapter="8"] { --g1: #377e87; --g2: #163c49; }
+.map-chapter[data-chapter="8"] { --chapter: #377e87; --chapter-deep: #245b66; --chapter-bg: #163c49; }
+#app[data-screen=game][data-chapter="9"] { --g1: #6a83a1; --g2: #303b58; }
+.map-chapter[data-chapter="9"] { --chapter: #6a83a1; --chapter-deep: #4a607b; --chapter-bg: #303b58; }
+#app[data-screen=game][data-chapter="10"] { --g1: #9b784c; --g2: #3c2d45; }
+.map-chapter[data-chapter="10"] { --chapter: #9b784c; --chapter-deep: #6b4c56; --chapter-bg: #3c2d45; }
 .game, .play-area { position: absolute; inset: 0; }
 .game { z-index: 1; }
 .scene { position: absolute; inset: calc(var(--inset-top) + 92px) 0 calc(var(--inset-bottom) + 124px); touch-action: none; }

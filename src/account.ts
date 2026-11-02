@@ -4,6 +4,7 @@ import { AccountRemoteError, AccountSync, type AccountState, type AccountUser, t
 import { accountKey, cleanSave, type KeyValueStore } from './account-store.ts';
 import { createSaveState, type SaveState } from './save-state.ts';
 import { playerName } from './player-name.ts';
+import { CATALOG_VERSION } from './puzzle.ts';
 export type { AccountState } from './account-sync.ts';
 
 declare global {
@@ -77,7 +78,7 @@ const backend: ProgressBackend = {
   },
   async write(save, revision) {
     if (!client) throw new AccountRemoteError('network');
-    const { data, error } = await bounded(client.rpc('save_game_progress', { p_save: save, p_expected_revision: revision }));
+    const { data, error } = await bounded(client.rpc('save_game_progress', { p_save: save, p_expected_revision: revision, p_catalog_version: CATALOG_VERSION }));
     if (error) throw remoteError(error);
     if (!data || typeof data.ok !== 'boolean') throw new AccountRemoteError('server');
     if (data.ok === false && data.revision === 0 && data.save === null) return { save: createSaveState(), revision: 0, ok: false };

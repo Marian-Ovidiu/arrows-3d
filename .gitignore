@@ -9,6 +9,7 @@ qa/*.png
 .android-sdk/
 test-results/
 playwright-report/
+supabase/.temp/
 *.jks
 *.keystore
 artifacts/android/*.apk

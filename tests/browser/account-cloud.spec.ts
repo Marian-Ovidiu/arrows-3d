@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { CATALOG_VERSION } from '../../src/puzzle';
 
 // Run against a build configured with https://svela-test.supabase.co and a dummy public key.
 // All requests to that host are intercepted; no Google login or external accounts are used.
@@ -21,6 +22,7 @@ test('account sync, profile, logout isolation and deletion failure/retry', async
     } else if (url.pathname === '/auth/v1/logout') response = {};
     else if (url.pathname === '/rest/v1/game_progress') response = cloud;
     else if (url.pathname.endsWith('/save_game_progress')) {
+      expect(body.p_catalog_version).toBe(CATALOG_VERSION);
       if (body.p_expected_revision === cloud.revision) cloud = {save:body.p_save,revision:cloud.revision+1,updated_at:new Date().toISOString()};
       response = {...cloud,ok:body.p_expected_revision === cloud.revision-1};
     } else if (url.pathname.endsWith('/delete_own_account')) { if (failDeletion) { await route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({message:'temporary failure'})}); return; } deleted = true; response = true; }

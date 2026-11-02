@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createAssetVignette, disposeChapterAsset, loadChapterAsset, type ChapterAssetLoader } from './chapter-assets.ts';
+import { createAssetVignette, disposeChapterAsset, hasChapterAsset, loadChapterAsset, type ChapterAssetLoader } from './chapter-assets.ts';
 
 type EnvironmentLevel = { key: string; chapter: number; pieces: readonly { position: readonly number[] }[] };
 type Placement = { x: number; y: number; scale: number };
@@ -33,6 +33,7 @@ export class ChapterEnvironment {
     this.material(0x8eaa93), this.material(0xb6beb1), this.material(0xb6866d),
     this.material(0x9daebb), this.material(0xdbd6c4), this.material(0xc1ad7e),
     this.material(0x8eafab), this.material(0xe2dcc8),
+    this.material(0xc69268), this.material(0xb2a9cc), this.material(0x78afc4), this.material(0xd3a5a1),
   ];
   private aspect = 1;
   private currentKey = '';
@@ -67,7 +68,7 @@ export class ChapterEnvironment {
     this.currentChapter = level.chapter;
     this.scene.userData.chapter = level.chapter;
     this.scene.userData.source = 'none';
-    if (level.chapter < 1 || level.chapter > 3) { this.onChange(); return; }
+    if (level.chapter < 1 || level.chapter > 10) { this.onChange(); return; }
     if (this.assets.has(level.chapter)) { this.installAsset(level.chapter); return; }
     let seed = 0;
     for (const character of level.key) seed = (Math.imul(seed, 31) + character.charCodeAt(0)) >>> 0;
@@ -84,7 +85,7 @@ export class ChapterEnvironment {
   }
 
   private requestAsset(chapter: number): void {
-    if (!this.assetLoader || this.requests.has(chapter)) return;
+    if (!hasChapterAsset(chapter) || !this.assetLoader || this.requests.has(chapter)) return;
     this.requests.add(chapter);
     void this.assetLoader(chapter).then(asset => {
       if (this.disposed) { disposeChapterAsset(asset); return; }
@@ -187,7 +188,7 @@ export class ChapterEnvironment {
       // Two shallow gold inlays read as carving in the fallen masonry.
       for (let line = 0; line < 2; line++)
         add('block', 5, -0.27, 0.27 + line * 0.09, 0.09, 0.009, 0.008, -0.1, 0, 0.1);
-    } else {
+    } else if (chapter === 3) {
       stone(-0.13, 0.09, 0.21, 6); stone(0.23, 0.07, 0.12, 4);
       add('arch', 6, -0.01, 0.4, 0.94, 1.14, 0.68, 0.23, 0.25);
       add('block', 6, -0.29, 0.2, 0.115, 0.28, 0.13, 0.13, 0.2);
@@ -197,6 +198,70 @@ export class ChapterEnvironment {
       add('shard', 7, 0.07, 0.7, 0.04, 0.15, 0.026, 0.24, 0.3, 0.08);
       add('shard', 5, 0.18, 0.86, 0.025, 0.07, 0.022, -0.3);
       add('shard', 7, -0.28, 0.72, 0.023, 0.06, 0.02, 0.4);
+    } else if (chapter === 4) {
+      // Terraced floating gardens, with a hanging bridge and trailing greenery.
+      for (const [x, y, size] of [[-.2,.24,.21],[.21,.59,.16]]) {
+        stone(x,y,size,6); add('block',4,x,y+.09,size*1.8,.04,size*1.5);
+        add('stem',0,x,y+.24,.018,.3,.018,.15);
+        for (const d of [-1,1]) add('leaf',0,x+d*.07,y+.32,.12,.04,.07,-d*.4);
+        for(let i=0;i<3;i++) add('leaf',0,x-size*.5+i*.055,y-.05-i*.045,.027,.09,.025,.3);
+      }
+      for(let i=0;i<5;i++) add('block',5,-.08+i*.048,.4+i*.028,.045,.018,.09,-.15);
+      add('shard',11,-.2,.59,.035,.065,.035);
+    } else if (chapter === 5) {
+      // A squat furnace, a stepped chimney, bellows and a small anvil.
+      stone(-.1,.08,.26,1);add('block',1,-.16,.29,.32,.4,.23);
+      add('arch',8,-.16,.28,.39,.46,.5,0,0,.14);
+      add('shard',8,-.16,.25,.07,.13,.03,0,0,.15);
+      add('block',1,-.21,.6,.16,.28,.17); add('block',5,-.21,.77,.2,.045,.2);
+      add('block',5,.22,.16,.21,.045,.18);add('stem',1,.22,.24,.055,.13,.06);
+      add('block',5,.22,.32,.28,.055,.14);add('shard',8,.36,.32,.08,.035,.06,-Math.PI/2);
+      for(let i=0;i<3;i++)add('leaf',4,-.2+i*.04,.86+i*.025,.035,.035,.025);
+    } else if (chapter === 6) {
+      // Mirrored turrets flank a reflecting gate; facets catch separate light.
+      add('block',4,0,.08,.75,.1,.24);
+      for(const x of [-.24,.24]){
+        add('block',9,x,.36,.13,.52,.14);add('shard',4,x,.7,.115,.17,.1);
+        for(const y of [.24,.4,.56])add('block',5,x,y,.06,.025,.012,0,0,.09);
+      }
+      add('arch',5,0,.37,.58,.8,.5);add('shard',10,0,.39,.12,.24,.035,0,0,.06);
+      add('ring',9,0,.39,.47,.65,.47,0,.4,.08);
+    } else if (chapter === 7) {
+      // A reef of tall crystal blades with branching coral at its foot.
+      stone(-.1,.1,.24,10);stone(.24,.08,.15,9);
+      for(let i=0;i<5;i++){const x=(i-2)*.13,height=.24+(i%3)*.12;add('shard',i%2?9:10,x,.2+height*.5,.075,height,.07,(i-2)*-.13,variation);}
+      for(const d of [-1,1]){
+        add('stem',11,d*.28,.27,.015,.32,.015,d*.2,0,.12);
+        add('stem',11,d*.32,.32,.012,.17,.012,-d*.7,0,.12);
+        add('leaf',4,d*.34,.42,.03,.035,.03,0,0,.12);
+      }
+      add('leaf',4,.03,.12,.07,.06,.07,0,0,.19);
+    } else if (chapter === 8) {
+      // Broken tidal stairs, an upright sea arch, and shallow wave ribbons.
+      for(let i=0;i<3;i++)add('block',6,-.2+i*.11,.1+i*.07,.25,.11,.3,-.04,0,-.04);
+      add('arch',4,.09,.42,.77,.91,.65,.12,.25);
+      add('block',4,-.17,.22,.09,.27,.13,-.1);add('block',6,.34,.17,.13,.24,.13,.15);
+      for(let i=0;i<3;i++)add('arch',10,-.19+i*.17,.12,.4,.15,.35,-.12,0,.16+i*.025);
+      add('shard',5,.05,.55,.04,.07,.04);
+      add('stem',5,.31,.4,.013,.17,.013,.15);add('ring',5,.3,.5,.13,.13,.13);
+    } else if (chapter === 9) {
+      // A wind pavilion with a suspended chime and pennants.
+      add('block',4,0,.1,.66,.08,.25);
+      for(const x of [-.23,.23]){add('stem',4,x,.42,.035,.59,.035);add('block',5,x,.71,.11,.04,.12);}
+      add('block',9,0,.75,.65,.055,.22);add('shard',9,0,.83,.32,.09,.16);
+      for(let i=0;i<4;i++){
+        const x=-.12+i*.08;add('stem',5,x,.59,.005,.23,.005);
+        add('stem',10,x,.4+(i%2)*.04,.015,.2-i*.02,.015);
+      }
+      add('shard',5,0,.23,.035,.065,.025);
+      for(const d of [-1,1])add('leaf',9,d*.3,.65,.13,.035,.025,d*.2);
+    } else if (chapter === 10) {
+      // The nexus: an elevated faceted heart inside crossing orbital arcs.
+      stone(0,.1,.26,9);add('block',4,0,.21,.39,.055,.27);
+      add('stem',5,0,.34,.04,.24,.04);add('shard',11,0,.59,.12,.19,.1);
+      add('ring',5,0,.59,.94,.94,.94,.4,.6);add('ring',9,0,.59,1.07,1.07,1.07,-.45,-.6);
+      for(let i=0;i<4;i++){const a=i*Math.PI/2+.3;add('shard',4,Math.cos(a)*.28,.59+Math.sin(a)*.28,.03,.045,.03,a,0,.04);}
+      for(const d of [-1,1])add('shard',5,d*.27,.2,.045,.1,.035,-d*.3);
     }
     for (const [material, geometries] of batches) {
       const merged = mergeGeometries(geometries);

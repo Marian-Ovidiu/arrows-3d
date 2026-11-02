@@ -13,7 +13,7 @@ begin
   if pg_catalog.has_table_privilege('authenticated', 'public.game_progress', 'INSERT')
     or pg_catalog.has_table_privilege('authenticated', 'public.game_progress', 'UPDATE')
     or pg_catalog.has_table_privilege('authenticated', 'public.game_progress', 'DELETE')
-    or pg_catalog.has_function_privilege('anon', 'public.save_game_progress(jsonb,integer)', 'EXECUTE')
+    or pg_catalog.has_function_privilege('anon', 'public.save_game_progress(jsonb,integer,text)', 'EXECUTE')
     or pg_catalog.has_function_privilege('anon', 'public.delete_own_account()', 'EXECUTE')
     or pg_catalog.has_function_privilege('service_role', 'public.delete_own_account()', 'EXECUTE') then
     raise exception 'Unexpected write/execute grants';

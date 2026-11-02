@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 
 const MODEL_NAMES: Record<number, string> = { 1: 'bosco', 2: 'osservatorio', 3: 'archivio' };
+/** Later chapters have native procedural scenery and never issue speculative GLB requests. */
+export const hasChapterAsset = (chapter: number): boolean => Object.hasOwn(MODEL_NAMES, chapter);
 export type ChapterAssetLoader = (chapter: number) => Promise<THREE.Group>;
 
 /** Load only local, self-contained models; the loader itself is a lazy chunk. */
