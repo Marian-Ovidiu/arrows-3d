@@ -95,9 +95,13 @@ test('first level completes, keeps collection and can be replayed', async ({ pag
   await page.reload();
   await continueGame(page);
   await expect(page.locator('[data-level="1"]')).toHaveAttribute('aria-pressed', 'true');
+  // A cleared stop starts a fresh replay and keeps its discovery.
   await chooseLevel(page, 0);
-  await expectProgress(page, FIRST_TOTAL, FIRST_TOTAL);
+  await expectProgress(page, 0, FIRST_TOTAL);
   await expect(page.locator('[data-level="0"] .tab-check')).toHaveAttribute('aria-label', 'completato');
+  await extractPieces(page);
+  await expect(page.locator('#win-dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Resta a guardare' }).click();
   await page.getByRole('button', { name: 'Annulla l’ultima estrazione' }).click();
   await expectProgress(page, FIRST_TOTAL - 1, FIRST_TOTAL);
   await removeOne(page, FIRST_TOTAL);

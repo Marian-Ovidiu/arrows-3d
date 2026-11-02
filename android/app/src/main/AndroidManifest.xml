@@ -38,5 +38,7 @@
 
     <!-- Keep Capacitor's normal WebView permission; all game content is bundled. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Short haptic cues for blocked moves and discoveries; switchable in Opzioni. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
 </manifest>

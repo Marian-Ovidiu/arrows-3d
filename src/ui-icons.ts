@@ -23,6 +23,7 @@ const ICONS = {
   clock: `<path d="${ring(12, 13.5, 7.5)}"/><path d="M12 9.5v4l2.5 2M10 2.5h4M12 2.5V6"/>`,
   home: '<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>',
   sound: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
+  vibrate: '<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M4 8v8M20 8v8M11 17.5h2"/>',
   help: `<path d="${ring(12, 12, 9)}"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17.5v.01"/>`,
   check: '<path d="M5 12l5 5 9-10"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v5h-5"/>',

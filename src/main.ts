@@ -17,7 +17,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { PointerGestureTracker } from './pointer-gesture';
 import { getTutorialStep } from './tutorial';
 import { initPwa } from './pwa';
-import { playSound, soundEnabled, toggleSound } from './sound';
+import { playSound, soundEnabled, toggleSound, vibrate, hapticsAvailable, hapticsEnabled, toggleHaptics } from './sound';
 import { LEVELS, CHAPTERS, CAMPAIGN_INDEXES, JOURNEY_INDEXES, TUTORIAL_INDEX, getExit, getAvailable, type Piece, type Level } from './puzzle';
 import { createRelic } from './relics';
 import { initMetagame, RARITIES } from './metagame-ui';
@@ -106,13 +106,14 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <dialog id="settings-dialog" class="sheet" aria-labelledby="settings-title">
     <button id="close-settings" class="dialog-close round-button" aria-label="Chiudi impostazioni">${icon('close')}</button>
     <h2 class="sheet-title" id="settings-title">Opzioni</h2>
-    <button id="sound-toggle" class="setting-row" aria-pressed="true">${icon('sound')}<span>Suoni</span><span class="toggle-track" aria-hidden="true"></span></button>
+    <button id="sound-toggle" class="setting-row setting-toggle" aria-pressed="true">${icon('sound')}<span>Suoni</span><span class="toggle-track" aria-hidden="true"></span></button>
+    <button id="haptics-toggle" class="setting-row setting-toggle" aria-pressed="true" hidden>${icon('vibrate')}<span>Vibrazione</span><span class="toggle-track" aria-hidden="true"></span></button>
     <button id="help" class="setting-row">${icon('help')}<span>Come si gioca</span>${icon('forward')}</button>
     <p class="local-save-note">I progressi sono salvati su questo dispositivo.</p>
   </dialog>
   <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
   <p id="save-warning" class="save-warning" role="status" hidden>Salvataggio non disponibile. Tieni aperto il gioco per conservare questa partita.</p>
-  <dialog id="help-dialog" class="sheet" aria-labelledby="help-title"><button class="dialog-close round-button" aria-label="Chiudi istruzioni">${icon('close')}</button><h2 class="sheet-title" id="help-title">Come si gioca</h2><ol class="help-steps"><li>${icon('restart')}<strong>Ruota</strong><span>Trascina la figura in ogni direzione.</span></li><li>${icon('hint')}<strong>Tocca un cubo</strong><span>La luce segue la sua freccia.</span></li><li>${icon('next')}<strong>Tocca ancora</strong><span>Esce solo se la strada è libera.</span></li><li>${icon('gem')}<strong>Svela</strong><span>Libera tutto e trova la reliquia.</span></li></ol><details><summary>Reliquie e aiuti</summary><p>Ogni livello svela una reliquia. Alla fine scopri il tempo e la qualità ottenuta: puoi migliorarla rigiocando, senza perdere quella già raggiunta. Fra un suggerimento e il successivo l’attesa cresce da 5 fino a 30 secondi. In pausa il tempo si ferma.</p></details><details><summary>Tastiera</summary><p>Frecce per ruotare, + e − per lo zoom, N per selezionare, Invio per estrarre, Esc per deselezionare.</p></details><button id="start" class="play-button">Ho capito</button></dialog>
+  <dialog id="help-dialog" class="sheet" aria-labelledby="help-title"><button class="dialog-close round-button" aria-label="Chiudi istruzioni">${icon('close')}</button><h2 class="sheet-title" id="help-title">Come si gioca</h2><ol class="help-steps"><li>${icon('restart')}<strong>Ruota</strong><span>Trascina la figura in ogni direzione.</span></li><li>${icon('hint')}<strong>Tocca un cubo</strong><span>La luce segue la sua freccia.</span></li><li>${icon('next')}<strong>Tocca ancora</strong><span>Esce solo se la strada è libera.</span></li><li>${icon('gem')}<strong>Svela</strong><span>Libera tutto e trova la reliquia.</span></li></ol><details><summary>Reliquie e aiuti</summary><p>Ogni livello svela una reliquia. Alla fine scopri il tempo e la qualità ottenuta: puoi migliorarla rigiocando, senza perdere quella già raggiunta. Fra un suggerimento e il successivo l’attesa cresce da 5 fino a 30 secondi. In pausa il tempo si ferma.</p></details><details><summary>Scorciatoie</summary><p>Doppio tocco sullo sfondo per ripristinare la vista.</p><p>Tastiera: frecce per ruotare, + e − per lo zoom, N per selezionare, Invio per estrarre, Esc per deselezionare o mettere in pausa, Z per annullare, H per un suggerimento, V per ripristinare la vista.</p></details><button id="start" class="play-button">Ho capito</button></dialog>
   <dialog id="win-dialog" class="win-dialog" aria-labelledby="win-title">
     <div class="win-rays" aria-hidden="true"></div>
     <p class="win-heading" aria-hidden="true">Svelato!</p>
@@ -504,9 +505,11 @@ function updateTutorial() {
   if (!active) return;
   const step = tutorialStep();
   $('tutorial-card').dataset.step = step.id;
-  if ($('tutorial-step').dataset.number !== String(step.number)) {
-    $('tutorial-step').dataset.number = String(step.number);
-    $('tutorial-step').innerHTML = `<span class="sr-only">Primi passi, ${step.number} di 4</span>${[1, 2, 3, 4].map(n => `<i class="${n < step.number ? 'is-done' : n === step.number ? 'is-current' : ''}"></i>`).join('')}`;
+  // Once the guide is finished every step reads as done, not the last as pending.
+  const reached = step.id === 'done' ? 5 : step.number;
+  if ($('tutorial-step').dataset.number !== String(reached)) {
+    $('tutorial-step').dataset.number = String(reached);
+    $('tutorial-step').innerHTML = `<span class="sr-only">Primi passi, ${step.number} di 4</span>${[1, 2, 3, 4].map(n => `<i class="${n < reached ? 'is-done' : n === reached ? 'is-current' : ''}"></i>`).join('')}`;
   }
   const skipLabel = step.id === 'done' ? 'Comincia' : 'Salta';
   if ($('skip-tutorial').textContent?.trim() !== skipLabel) $('skip-tutorial').innerHTML = `${skipLabel} ${icon('next')}`;
@@ -566,6 +569,10 @@ function updateProgress() {
   });
   updateHomeActions();
   updateTutorial();
+}
+/** A small bounce on the counter confirms each freed piece at a glance. */
+function bumpProgress() {
+  if (!reducedMotion) $('progress-label').animate([{ transform: 'none' }, { transform: 'scale(1.16)' }, { transform: 'none' }], { duration: 380, easing: EASE_OUT });
 }
 /** Home shows only what the next tap does: the level badge and its chapter's progress. */
 function updateHomeActions() {
@@ -660,7 +667,7 @@ function extract() {
   if (!exit.free) {
     // Repeated taps must not stack nudges on the same cube. Other cubes stay live.
     if (animations.some(animation => animation.pieceId === piece.id)) return;
-    playSound('blocked');
+    playSound('blocked'); vibrate('blocked');
     const initial = vec(piece.position);
     const travel = Math.min(0.06, exit.distance - 0.46 * 2);
     animations.push({ pieceId: piece.id, start: performance.now(), duration: reducedMotion ? 60 : 320,
@@ -687,7 +694,7 @@ function extract() {
     },
     end: () => { departingGroup.remove(group); disposeGroup(group); },
   });
-  updateProgress(); announce(`Freccia liberata. Restano ${remaining.length} pezzi.`);
+  updateProgress(); bumpProgress(); announce(`Freccia liberata. Restano ${remaining.length} pezzi.`);
   if (!remaining.length) win();
   void persistGame();
 }
@@ -766,8 +773,26 @@ function loadLevel(index: number, restart = false) {
   syncSession();
   void persistGame();
 }
+/** Raise the relic above the victory card, which covers the lower part of the scene. */
+function liftRewardForCard(distance: number) {
+  const bounds = $('scene').getBoundingClientRect();
+  if (!bounds.height) return;
+  const desired = innerHeight * 0.36;
+  const pixels = Math.max(0, bounds.top + bounds.height / 2 - desired);
+  const lift = pixels / (bounds.height / 2) * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const from = controls.target.y;
+  if (reducedMotion) { controls.target.y = -lift; return; }
+  animations.push({ start: performance.now(), duration: 650, update: t => { controls.target.y = from + (-lift - from) * smooth(t); } });
+}
+/** Victory card again after admiring the relic, without celebrating twice. */
+function reopenWin() {
+  const dialog = $<HTMLDialogElement>('win-dialog');
+  if (dialog.open || remaining.length || screen !== 'game') return;
+  if (dialog.dataset.winKey === LEVELS[levelIndex].key) { hideToast(); dialog.showModal(); }
+  else win();
+}
 function win() {
-  playSound('win');
+  playSound('win'); vibrate('win');
   const level = LEVELS[levelIndex];
   const tutorial = levelIndex === TUTORIAL_INDEX;
   const firstDiscovery = !completed.has(level.key);
@@ -786,6 +811,8 @@ function win() {
   if (!reducedMotion) animations.push({ start: performance.now(), duration: 800, update: t => reward.scale.setScalar(0.4 + smooth(t) * 0.6) });
   const currentGeneration = generation;
   moveCamera(camera.position.clone().normalize().multiplyScalar(4));
+  liftRewardForCard(4);
+  $('win-dialog').dataset.winKey = level.key;
   $('win-title').textContent = level.artifact;
   $('win-rarity').textContent = tutorial ? 'PRIMI PASSI' : RARITIES[quality].toUpperCase();
   $('win-pips').innerHTML = tutorial ? '' : pips(RARITY_PIPS[quality]);
@@ -827,7 +854,7 @@ function win() {
       if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = message;
     })().catch(error => { if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = error instanceof Error ? error.message : 'Risultato salvato sul dispositivo. Classifica non disponibile.'; });
   }
-  completionTimer = setTimeout(() => { if (currentGeneration === generation && !remaining.length) $<HTMLDialogElement>('win-dialog').showModal(); }, 1050);
+  completionTimer = setTimeout(() => { if (currentGeneration === generation && !remaining.length && !$<HTMLDialogElement>('win-dialog').open) $<HTMLDialogElement>('win-dialog').showModal(); }, 1050);
 }
 
 /** Local active time continues across visits; only uninterrupted runs enter online times. */
@@ -882,6 +909,7 @@ const metagame = initMetagame({
 
 const gestures = new PointerGestureTracker();
 let orbitStart: THREE.Vector3 | null = null;
+let lastEmptyTap = -Infinity;
 renderer.domElement.addEventListener('pointerdown', event => {
   if (event.button !== 0 || screen !== 'game') return;
   wakeRenderer();
@@ -903,11 +931,18 @@ window.addEventListener('pointerup', event => {
   const bounds = renderer.domElement.getBoundingClientRect();
   if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
   if (document.elementFromPoint(event.clientX, event.clientY) !== renderer.domElement) return;
+  // A finished board has nothing left to pick: a tap brings back the victory card.
+  if (screen === 'game' && !remaining.length) { reopenWin(); return; }
   pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects([...puzzleGroup.children, ...reward.children], true)[0];
   const piece = hit && remaining.find(p => p.id === hit.object.userData.pieceId);
-  if (!piece) selectPiece(null);
+  if (!piece) {
+    // Double tap on empty space: back to the starting view.
+    if (!hit && event.timeStamp - lastEmptyTap < 350) { lastEmptyTap = -Infinity; resetView(); }
+    else lastEmptyTap = hit ? -Infinity : event.timeStamp;
+    selectPiece(null);
+  }
   else if (selected?.id === piece.id) extract();
   else selectPiece(piece);
 }, { capture: true });
@@ -917,7 +952,7 @@ window.addEventListener('blur', () => { windowFocused = false; gestures.reset();
 window.addEventListener('focus', () => { windowFocused = true; syncSession(); });
 renderer.domElement.addEventListener('keydown', event => {
   if ((screen !== 'game' && screen !== 'collection') || document.querySelector('dialog[open]')) return;
-  if (event.key === 'Enter' && screen === 'game') { event.preventDefault(); extract(); }
+  if (event.key === 'Enter' && screen === 'game') { event.preventDefault(); if (remaining.length) extract(); else reopenWin(); }
   if (event.key.toLowerCase() === 'n' && screen === 'game') { event.preventDefault(); cyclePiece(); }
   if (event.key === 'Escape') { event.preventDefault(); if (screen === 'collection') metagame.closeDetail(); else if (selected) selectPiece(null); else openPause(); }
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '-', '='].includes(event.key)) {
@@ -933,6 +968,20 @@ renderer.domElement.addEventListener('keydown', event => {
     if (event.key.startsWith('Arrow') && screen === 'game') learnedRotation();
   }
 });
+// Game shortcuts work wherever focus sits during play, except in text fields.
+document.addEventListener('keydown', event => {
+  if (screen !== 'game' || event.altKey || document.querySelector('dialog[open]') || (event.target as HTMLElement).closest?.('input, textarea, select')) return;
+  const key = event.key.toLowerCase();
+  const command = event.ctrlKey || event.metaKey;
+  if (key === 'z' && !event.shiftKey) { event.preventDefault(); $('undo').click(); return; }
+  if (command) return;
+  if (key === 'u') $('undo').click();
+  else if (key === 'h') $('hint').click();
+  else if (key === 'v' || key === '0') resetView();
+  else if (key === 'p' || (key === 'escape' && event.target !== renderer.domElement)) openPause();
+  else return;
+  event.preventDefault();
+});
 $('play-game').addEventListener('click', continueGame);
 $('tab-home').addEventListener('click', () => showScreen('home'));
 $('tab-journey').addEventListener('click', () => showScreen('journey'));
@@ -940,11 +989,7 @@ $('tab-collection').addEventListener('click', () => metagame.openCollection());
 $('tab-rankings').addEventListener('click', () => metagame.openRankings(levelIndex));
 $('top-relics').addEventListener('click', () => metagame.openCollection());
 $('pause-game').addEventListener('click', openPause);
-$('resume-game').addEventListener('click', () => {
-  closeDialogs();
-  renderer.domElement.focus({ preventScroll: true });
-  if (!remaining.length) win();
-});
+$('resume-game').addEventListener('click', () => resumeGame());
 $('pause-journey').addEventListener('click', () => showScreen('journey'));
 $('pause-collection').addEventListener('click', () => metagame.openCollection(levelIndex));
 $('pause-home').addEventListener('click', () => showScreen('home'));
@@ -956,6 +1001,52 @@ $('sound-toggle').addEventListener('click', () => {
   $('sound-toggle').setAttribute('aria-pressed', String(toggleSound()));
   if (soundEnabled()) playSound('select');
 });
+$('haptics-toggle').hidden = !hapticsAvailable;
+$('haptics-toggle').setAttribute('aria-pressed', String(hapticsEnabled()));
+$('haptics-toggle').addEventListener('click', () => {
+  $('haptics-toggle').setAttribute('aria-pressed', String(toggleHaptics()));
+  vibrate('blocked');
+});
+function resumeGame() {
+  closeDialogs();
+  renderer.domElement.focus({ preventScroll: true });
+  if (!remaining.length) reopenWin();
+}
+/** Sheets close like native ones: a tap on the dimmed backdrop, or a swipe down. */
+function dismissSheet(dialog: HTMLDialogElement) {
+  if (dialog.id === 'pause-dialog') { resumeGame(); return; }
+  if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+}
+document.addEventListener('click', event => {
+  const dialog = event.target;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains('sheet')) return;
+  const box = dialog.getBoundingClientRect();
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dismissSheet(dialog);
+});
+let sheetDrag: { dialog: HTMLDialogElement; id: number; y: number; dy: number; time: number } | null = null;
+// Only the grip and title start a swipe, so buttons and scrolling content behave as usual.
+document.addEventListener('pointerdown', event => {
+  const grip = (event.target as HTMLElement).closest?.('.sheet-handle, .sheet-title');
+  const dialog = grip?.closest<HTMLDialogElement>('dialog.sheet[open]');
+  if (!dialog || event.button !== 0) return;
+  sheetDrag = { dialog, id: event.pointerId, y: event.clientY, dy: 0, time: event.timeStamp };
+});
+document.addEventListener('pointermove', event => {
+  if (!sheetDrag || event.pointerId !== sheetDrag.id) return;
+  sheetDrag.dy = Math.max(0, event.clientY - sheetDrag.y);
+  if (sheetDrag.dy < 8) return;
+  sheetDrag.dialog.style.transition = 'none';
+  sheetDrag.dialog.style.transform = `translateY(${sheetDrag.dy}px)`;
+});
+const endSheetDrag = (event: PointerEvent) => {
+  if (!sheetDrag || event.pointerId !== sheetDrag.id) return;
+  const { dialog, dy, time } = sheetDrag;
+  sheetDrag = null;
+  dialog.style.transition = dialog.style.transform = '';
+  if (event.type === 'pointerup' && dy >= 8 && (dy > 110 || dy / Math.max(1, event.timeStamp - time) > 0.6)) dismissSheet(dialog);
+};
+document.addEventListener('pointerup', endSheetDrag);
+document.addEventListener('pointercancel', endSheetDrag);
 // Capture also covers account dialogs installed after startup.
 document.addEventListener('close', event => {
   if (!(event.target instanceof HTMLDialogElement)) return;
@@ -981,18 +1072,31 @@ $('undo').addEventListener('click', () => {
   const snapshot = session?.snapshot(performance.now());
   if (snapshot?.finished) { session = new PlaySession({ ...snapshot, finished: false, eligible: false }); onlineStart = null; onlineEpoch++; }
   clearTimeout(completionTimer);
+  $<HTMLDialogElement>('win-dialog').close();
+  const wasComplete = !remaining.length;
   const piece = history.pop()!;
   finishPieceAnimation(piece.id);
   remaining.push(piece); createPiece(piece);
-  selectPiece(null); syncSession(); updateProgress(); resetView(); announce('Ultima estrazione annullata.');
+  // The piece settles back into place; the view only moves if the relic close-up was showing.
+  const group = meshes.get(piece.id)!;
+  if (!reducedMotion) animations.push({ pieceId: piece.id, start: performance.now(), duration: 380, update: t => group.scale.setScalar(0.55 + 0.45 * smooth(t)), end: () => group.scale.setScalar(1) });
+  selectPiece(null); syncSession(); updateProgress(); if (wasComplete) resetView(); announce('Ultima estrazione annullata.');
   void persistGame();
 });
-document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach(button => button.addEventListener('click', () => enterGame(Number(button.dataset.level))));
+// A stop whose board is already cleared starts a new run, like Rigioca, instead of an empty scene.
+document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach(button => button.addEventListener('click', () => {
+  const index = Number(button.dataset.level), level = LEVELS[index];
+  const cleared = index === levelIndex ? !remaining.length : savedGame.levels[level.key]?.removedIds.length === level.pieces.length;
+  enterGame(index, cleared && completed.has(level.key));
+}));
 $('help').addEventListener('click', () => { $<HTMLDialogElement>('help-dialog').showModal(); syncSession(); });
 document.querySelector('#help-dialog .dialog-close')!.addEventListener('click', () => $<HTMLDialogElement>('help-dialog').close());
 $('start').addEventListener('click', () => $<HTMLDialogElement>('help-dialog').close());
 $('skip-tutorial').addEventListener('click', () => loadLevel(0));
-$('admire').addEventListener('click', () => $<HTMLDialogElement>('win-dialog').close());
+$('admire').addEventListener('click', () => {
+  $<HTMLDialogElement>('win-dialog').close();
+  showToast('Tocca la scena per tornare al riepilogo.');
+});
 $('next-level').addEventListener('click', () => {
   if (levelIndex === CAMPAIGN_INDEXES.at(-1)) metagame.openCollection(levelIndex);
   else loadLevel(levelIndex === TUTORIAL_INDEX ? 0 : levelIndex + 1);
@@ -1058,6 +1162,13 @@ function renderFrame(time: number) {
   }
   if (spinning && screen === 'game') reward.rotation.y += delta * 0.32;
   if (spinning && screen === 'collection') gallery.rotation.y += delta * 0.28;
+  // The tutorial target breathes, so the thin outline is easy to spot.
+  const pulsing = !reducedMotion && !modalOpen && screen === 'game' && tutorialOutline.visible;
+  if (pulsing) {
+    const wave = (Math.sin(time * 0.006) + 1) / 2;
+    tutorialOutline.scale.setScalar(1 + wave * 0.07);
+    tutorialOutline.material.opacity = 0.4 + wave * 0.55;
+  }
   controls.update();
   if (environmentEnabled) {
     // Scenery is a background pass: it never covers a cube or enters hit testing.
@@ -1069,7 +1180,7 @@ function renderFrame(time: number) {
     renderer.autoClear = true;
   } else renderer.render(scene, camera);
   idleFrames++;
-  if (idleFrames > 12 && animations.length === 0 && !cameraTween && !spinning) {
+  if (idleFrames > 12 && animations.length === 0 && !cameraTween && !spinning && !pulsing) {
     renderer.setAnimationLoop(null);
     rendering = false;
   }

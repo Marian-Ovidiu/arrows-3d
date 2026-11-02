@@ -32,3 +32,19 @@ export function playSound(kind: 'select' | 'release' | 'blocked' | 'win') {
   } catch { /* Audio availability must never prevent play. */ }
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) void context?.suspend(); });
+
+let haptics = true;
+try { haptics = localStorage.getItem('svela-haptics') !== 'off'; } catch { /* Optional preference. */ }
+// Desktop browsers expose the API without a motor: offer it only on touch devices.
+export const hapticsAvailable = typeof navigator !== 'undefined' && 'vibrate' in navigator && matchMedia('(pointer: coarse)').matches;
+export const hapticsEnabled = () => haptics;
+export function toggleHaptics(): boolean {
+  haptics = !haptics;
+  try { localStorage.setItem('svela-haptics', haptics ? 'on' : 'off'); } catch { /* Keep session setting. */ }
+  return haptics;
+}
+/** A brief buzz on phones that support it; silently absent elsewhere. */
+export function vibrate(kind: 'blocked' | 'win') {
+  if (!haptics || !hapticsAvailable || document.hidden) return;
+  try { navigator.vibrate(kind === 'blocked' ? [18, 40, 18] : [24, 60, 36]); } catch { /* Never prevent play. */ }
+}

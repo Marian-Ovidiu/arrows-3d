@@ -249,7 +249,7 @@ h1, h2, h3 { margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 700; }
 #app[data-screen=game] .game-hud { opacity: 1; visibility: visible; transform: none; transition: opacity .4s var(--ease) .15s, transform .55s var(--ease) .15s, visibility 0s; }
 #app[data-screen=game] .tool-rail { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition: opacity .4s var(--ease) .22s, transform .6s var(--spring) .22s, visibility 0s; }
 /* The victory overlay owns the screen; game controls step aside while it is open. */
-#app[data-screen=game]:has(#win-dialog[open]) :is(.game-hud, .tool-rail, .level-toast, .trial-status) { opacity: 0; visibility: hidden; transition: opacity .3s var(--ease), visibility 0s linear .3s; }
+#app[data-screen=game]:has(#win-dialog[open]) :is(.game-hud, .tool-rail, .level-toast, .trial-status, .tutorial-card) { opacity: 0; visibility: hidden; transition: opacity .3s var(--ease), visibility 0s linear .3s; }
 .level-toast {
   position: absolute; left: 0; right: 0; bottom: calc(var(--inset-bottom) + 132px); width: max-content; max-width: calc(100% - 48px); margin: 0 auto;
   padding: 12px 18px; border-radius: 18px; background: rgba(11, 33, 30, .78); color: var(--cream); backdrop-filter: blur(8px);
@@ -279,6 +279,8 @@ h1, h2, h3 { margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 700; }
 .tutorial-steps i.is-done { background: var(--green); }
 #skip-tutorial { display: flex; align-items: center; gap: 4px; min-height: 44px; min-width: 44px; padding: 0 8px; font-weight: 900; font-size: 14px; color: var(--teal-600); }
 #skip-tutorial .icon { width: 18px; height: 18px; }
+/* Room for a two-line tip, so the card does not jump between steps. */
+.tutorial-card [role=status] { min-height: 64px; }
 .tutorial-card strong { display: block; font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 18px; line-height: 1.15; }
 .tutorial-card p { margin: 4px 6px 0 0; font-size: 14px; line-height: 1.38; color: #3d524c; }
 .save-warning, .graphics-warning { margin: 0; padding: 12px 14px; border-radius: 16px; background: var(--cream); color: var(--ink); border: 3px solid var(--ink); font-size: 14px; z-index: 20; box-shadow: 0 4px 0 var(--ink); }
@@ -484,8 +486,10 @@ dialog[open]::backdrop { opacity: 1; }
 .sheet[open] { display: flex; flex-direction: column; gap: 14px; transform: none; }
 @starting-style { .sheet[open] { transform: translateY(100%); } }
 .sheet:not([open]) { transition-timing-function: var(--ease-in); transition-duration: .3s; }
-.sheet-handle { align-self: center; width: 48px; height: 6px; border-radius: 3px; background: var(--cream-shade); }
-.sheet-title { font-size: 30px; line-height: 1.1; text-align: center; padding: 4px 44px 2px; }
+/* Grip and title can be dragged down to close; the grip has a finger-sized hit area. */
+.sheet-handle { position: relative; align-self: center; width: 48px; height: 6px; border-radius: 3px; background: var(--cream-shade); touch-action: none; cursor: grab; }
+.sheet-handle::before { content: ''; position: absolute; inset: -14px -40px; }
+.sheet-title { font-size: 30px; line-height: 1.1; text-align: center; padding: 4px 44px 2px; touch-action: none; }
 .sheet-note { margin: 0; text-align: center; font-size: 16px; color: #3d524c; }
 .sheet-small { margin: 0; text-align: center; font-size: 13px; color: #5a6b65; }
 .sheet-small:empty { display: none; }
@@ -514,8 +518,8 @@ dialog[open]::backdrop { opacity: 1; }
 .setting-row:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); transition-duration: .08s; }
 .toggle-track { position: relative; width: 56px; height: 32px; flex: none; border-radius: 16px; background: var(--cream-shade); border: 2px solid var(--ink); transition: background-color .3s var(--ease); }
 .toggle-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); transition: transform .4s var(--spring); }
-.setting-toggle[aria-pressed=true] .toggle-track, #sound-toggle[aria-pressed=true] .toggle-track { background: var(--green); }
-#sound-toggle[aria-pressed=true] .toggle-track::after { transform: translateX(24px); }
+.setting-toggle[aria-pressed=true] .toggle-track { background: var(--green); }
+.setting-toggle[aria-pressed=true] .toggle-track::after { transform: translateX(24px); }
 .local-save-note { margin: 4px 0 0; text-align: center; font-size: 13px; color: #5a6b65; }
 .help-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .help-steps li { display: grid; grid-template-columns: 48px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; }

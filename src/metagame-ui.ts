@@ -148,6 +148,8 @@ export function initMetagame(hooks: Hooks) {
     personalRanking();
     el('ranking-list').replaceChildren();
     el('ranking-list').classList.remove('has-podium');
+    // Nothing to refresh until the player has an account.
+    el('ranking-refresh').hidden = !owner;
     if (!owner) {
       setStatus(accountState().configured ? 'Accedi per entrare in classifica.' : 'Le classifiche online arriveranno quando il servizio sarà collegato.');
       return;
