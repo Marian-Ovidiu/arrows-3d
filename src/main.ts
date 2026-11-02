@@ -16,7 +16,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PointerGestureTracker } from './pointer-gesture';
 import { getTutorialStep } from './tutorial';
-import { initPwa } from './pwa';
+import { initPwa, applyPendingUpdate } from './pwa';
+import { initPlayGate } from './gate-ui';
 import { playSound, soundEnabled, toggleSound, vibrate, hapticsAvailable, hapticsEnabled, toggleHaptics } from './sound';
 import { LEVELS, CHAPTERS, CAMPAIGN_INDEXES, JOURNEY_INDEXES, TUTORIAL_INDEX, getExit, getAvailable, type Piece, type Level } from './puzzle';
 import { createRelic } from './relics';
@@ -382,7 +383,11 @@ function showScreen(next: Screen) {
   changingSession = false;
   syncSession();
   wakeRenderer();
+  // Leaving a level is the moment for pending requirements and updates.
+  playGate?.refresh();
+  applyPendingUpdate();
 }
+let playGate: ReturnType<typeof initPlayGate> | undefined;
 const SCREEN_IDS = { home: 'home-screen', journey: 'journey-screen', collection: 'collection-screen', rankings: 'rankings-screen' } as const;
 const COVERED = new Set<Screen>(['journey', 'collection', 'rankings']);
 const COVER_MS = 260;
@@ -1219,7 +1224,13 @@ async function startGame() {
   completed = new Set(savedGame.completed);
   resize(); loadLevel(Math.max(0, LEVELS.findIndex(level => level.key === savedGame.activeLevel)));
   ready = true; $('app').inert = false;
-  createHomeSculpture(); showScreen('home'); initPwa();
+  createHomeSculpture(); showScreen('home');
+  // A new version is applied only from a menu, never in the middle of a level.
+  initPwa(() => screen !== 'game' && !document.querySelector('dialog[open]'));
+  playGate = initPlayGate({
+    canInterrupt: () => screen !== 'game',
+    onOpenChange: open => { if (open) closeDialogs(); $('app').inert = open; wakeRenderer(); },
+  });
   if (!reducedMotion) animations.push({ start: performance.now(), duration: 900, update: t => homeSculpture.scale.setScalar(0.7 + smooth(t) * 0.3) });
   initAccountUi(async () => { pauseSession(); settleAnimations(); await persistGame(); });
   onAccountSaveChange(save => {

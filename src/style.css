@@ -585,6 +585,28 @@ dialog[open]::backdrop { opacity: 1; }
 .google-login:disabled { opacity: .5; }
 #account-conflict { padding: 12px; border-radius: 16px; background: #fbe6c8; }
 
+/* ---------- Install and sign-in gate: the home scene stays visible behind it ---------- */
+.play-gate {
+  position: fixed; inset: 0; z-index: 100; overflow: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  padding: calc(var(--inset-top) + 24px) max(16px, var(--inset-right)) calc(var(--inset-bottom) + 24px) max(16px, var(--inset-left));
+  background: radial-gradient(circle at 50% 30%, rgba(42, 97, 87, .82), rgba(11, 33, 30, .95) 70%); backdrop-filter: blur(10px);
+  animation: rise .5s var(--ease) both;
+}
+.gate-logo { margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 64px; line-height: 1; letter-spacing: -1px; color: var(--cream); text-shadow: 0 6px 0 var(--ink); }
+.gate-card {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 22px 20px;
+  background: var(--cream); color: var(--ink); border: 3px solid var(--ink); border-radius: 30px; box-shadow: 0 8px 0 var(--ink);
+  animation: pop .5s var(--spring) .1s both;
+}
+.gate-card h2 { font-size: 28px; line-height: 1.1; text-align: center; }
+.gate-copy-text { margin: 0; text-align: center; font-size: 15px; line-height: 1.45; color: #3d524c; }
+.gate-note { margin: 0; text-align: center; font-size: 13px; color: #5a6b65; }
+.gate-card .play-button { min-height: 68px; font-size: 26px; }
+.gate-card .menu-option, .gate-copy { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; width: 100%; border-radius: 16px; background: var(--white); border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); font-weight: 900; font-size: 16px; overflow-wrap: anywhere; }
+.gate-card .google-login:disabled { opacity: .5; }
+.gate-card .sheet-badge .icon { stroke-width: 2.6; }
+
 /* ---------- Small phones ---------- */
 @media (max-width: 360px) {
   .home-logo { font-size: 64px; }
