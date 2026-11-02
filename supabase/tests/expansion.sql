@@ -7,8 +7,8 @@ do $$ begin
   if (select count(*) from svela_private.puzzle_catalog where ranked) <> 50 then raise exception 'Expected 50 ranked puzzles'; end if;
   if (select count(*) from svela_private.puzzle_catalog where catalog_version='fantasy-v1') <> 16 then raise exception 'Original catalog identities changed'; end if;
   if pg_catalog.has_function_privilege('authenticated','svela_private.save_game_progress_v2(jsonb,integer)','execute')
-    or pg_catalog.has_function_privilege('anon','public.save_game_progress(jsonb,integer,text)','execute')
-    or pg_catalog.has_function_privilege('service_role','public.save_game_progress(jsonb,integer,text)','execute') then raise exception 'Compatibility wrapper is bypassable'; end if;
+    or pg_catalog.has_function_privilege('anon','public.save_game_progress(jsonb,integer,text,integer)','execute')
+    or pg_catalog.has_function_privilege('service_role','public.save_game_progress(jsonb,integer,text,integer)','execute') then raise exception 'Compatibility wrapper is bypassable'; end if;
 end $$;
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"36d210d0-0010-4000-8000-000000000050","role":"authenticated"}',true);

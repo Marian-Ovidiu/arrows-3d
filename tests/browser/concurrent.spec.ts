@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseLevel, continueGame } from './navigation';
+import { chooseLevel, continueGame, extractPieces } from './navigation';
 import { LEVELS, TUTORIAL_INDEX } from '../../src/puzzle';
 
 const FIRST_TOTAL = LEVELS[0].pieces.length;
@@ -9,16 +9,7 @@ const FIRST_TOTAL = LEVELS[0].pieces.length;
 test.use({ reducedMotion: 'no-preference' });
 
 async function burst(page: Page, count: number) {
-  return page.evaluate(({ count, levelKey }) => {
-    const snapshots: { progress: string | null; removed: string[] }[] = [];
-    for (let index = 0; index < count; index++) {
-      document.querySelector<HTMLButtonElement>('#hint')!.click();
-      document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      const save = JSON.parse(localStorage.getItem('svela-save-v1')!);
-      snapshots.push({ progress: document.querySelector('#progress-label')!.textContent, removed: save.levels[levelKey].removedIds });
-    }
-    return snapshots;
-  }, { count, levelKey: LEVELS[0].key });
+  return extractPieces(page, count);
 }
 
 async function savedIds(page: Page): Promise<string[]> {
@@ -44,15 +35,18 @@ test('undo restores the most recent flying cube and it can be extracted again im
   const result = await page.evaluate(levelKey => {
     const removed = (): string[] => JSON.parse(localStorage.getItem('svela-save-v1')!).levels[levelKey].removedIds;
     const extract = () => {
-      document.querySelector<HTMLButtonElement>('#hint')!.click();
-      document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const key = (key: string) => document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      for (let n = 0; n < 100; n++) { key('n'); if (document.querySelector('#announcement')!.textContent === 'Freccia selezionata. Uscita libera.') break; }
+      key('Enter');
     };
     extract(); extract(); extract();
     const before = removed();
     document.querySelector<HTMLButtonElement>('#undo')!.click();
     const afterUndo = removed();
     const undoProgress = document.querySelector('#progress-label')!.textContent;
-    extract();
+    // Undo appends the restored cube to the remaining keyboard order.
+    for (let n = 0; n < 8 - before.length + 1; n++) document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', bubbles: true }));
+    document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     return { before, afterUndo, undoProgress, afterReextract: removed(), progress: document.querySelector('#progress-label')!.textContent };
   }, LEVELS[0].key);
   expect(result.before).toHaveLength(3);
@@ -76,8 +70,9 @@ test('pausing persists overlapping flights and restarting clears them without la
   await chooseLevel(page, 0);
   const removed = await page.evaluate(levelKey => {
     for (let index = 0; index < 3; index++) {
-      document.querySelector<HTMLButtonElement>('#hint')!.click();
-      document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const key = (key: string) => document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      for (let n = 0; n < 100; n++) { key('n'); if (document.querySelector('#announcement')!.textContent === 'Freccia selezionata. Uscita libera.') break; }
+      key('Enter');
     }
     document.querySelector<HTMLButtonElement>('#pause-game')!.click();
     return JSON.parse(localStorage.getItem('svela-save-v1')!).levels[levelKey].removedIds as string[];
@@ -90,8 +85,9 @@ test('pausing persists overlapping flights and restarting clears them without la
   expect(await savedIds(page)).toEqual(removed);
   const reset = await page.evaluate(() => {
     for (let index = 0; index < 2; index++) {
-      document.querySelector<HTMLButtonElement>('#hint')!.click();
-      document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const key = (key: string) => document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      for (let n = 0; n < 100; n++) { key('n'); if (document.querySelector('#announcement')!.textContent === 'Freccia selezionata. Uscita libera.') break; }
+      key('Enter');
     }
     const before = document.querySelector('#progress-label')!.textContent;
     document.querySelector<HTMLButtonElement>('#pause-game')!.click();

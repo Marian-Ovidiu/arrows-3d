@@ -78,7 +78,7 @@ const backend: ProgressBackend = {
   },
   async write(save, revision) {
     if (!client) throw new AccountRemoteError('network');
-    const { data, error } = await bounded(client.rpc('save_game_progress', { p_save: save, p_expected_revision: revision, p_catalog_version: CATALOG_VERSION }));
+    const { data, error } = await bounded(client.rpc('save_game_progress', { p_save: save, p_expected_revision: revision, p_catalog_version: CATALOG_VERSION, p_progress_version: 3 }));
     if (error) throw remoteError(error);
     if (!data || typeof data.ok !== 'boolean') throw new AccountRemoteError('server');
     if (data.ok === false && data.revision === 0 && data.save === null) return { save: createSaveState(), revision: 0, ok: false };
@@ -252,7 +252,15 @@ export async function accountRpc<T>(name: string, args: Record<string, unknown> 
       if (['PGRST202', '42883', '42P01'].includes(error.code)) throw new AccountFeatureError('migration', 'Le classifiche richiedono l’aggiornamento del database.');
       if (!error.code && /fetch|network|offline|abort/i.test(error.message)) throw new AccountFeatureError('offline', 'Connessione assente. I progressi restano salvati su questo dispositivo.');
       if (['28000', 'PGRST301', 'PGRST302'].includes(error.code)) throw new AccountFeatureError('guest', 'La sessione è scaduta. Accedi nuovamente.');
-      if (error.code === '22023') throw new AccountFeatureError('invalid', 'La prova non è valida o è scaduta. Avviane una nuova.');
+      if (error.code === '22023') {
+        const messages: Record<string, string> = {
+          submit_discovery: 'Questa scoperta non è stata ancora verificata online. I progressi restano salvati.',
+          get_leaderboard: 'La classifica di questo livello non è ancora disponibile online.',
+          start_timed_run: 'Il tempo online non è disponibile per questa partita. Puoi continuare a giocare.',
+          finish_timed_run: 'La partita non è valida o è scaduta. Avviane una nuova.',
+        };
+        throw new AccountFeatureError('invalid', messages[name] ?? 'Richiesta non valida. Aggiorna e riprova.');
+      }
       throw new AccountFeatureError('server', 'Impossibile aggiornare la classifica. Riprova.');
     }
     return data as T;

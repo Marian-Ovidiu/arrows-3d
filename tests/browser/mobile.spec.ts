@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { chooseLevel, continueGame, restartLevel } from './navigation';
+import { chooseLevel, continueGame, restartLevel, extractPieces } from './navigation';
 import { LEVELS } from '../../src/puzzle';
 
 const FIRST_TOTAL = LEVELS[0].pieces.length;
@@ -26,10 +26,7 @@ async function expectTouchTargets(page: Page) {
 }
 
 async function removeOne(page: Page, count: number, total = FIRST_TOTAL) {
-  await page.getByRole('button', { name: 'Suggerimento: trova una freccia libera' }).click();
-  await expect(page.locator('#announcement')).toHaveText('Freccia selezionata. Uscita libera.');
-  await page.locator('canvas').focus();
-  await page.keyboard.press('Enter');
+  await extractPieces(page, 1);
   await expectProgress(page, count, total);
 }
 

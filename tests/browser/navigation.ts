@@ -28,3 +28,25 @@ export async function restartLevel(page: Page) {
   await page.locator('#restart').click();
   await expect(page.locator('#pause-dialog')).toBeHidden();
 }
+
+/** Exercise ordinary keyboard play without bypassing the assistance cooldown. */
+export async function extractPieces(page: Page, count = 500) {
+  return page.evaluate(count => {
+    const key = (key: string) => document.querySelector('canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    const snapshots: { progress: string | null; removed: string[] }[] = [];
+    for (let index = 0; index < count; index++) {
+      const progress = document.querySelector('#progress-label')!.textContent!.split(' / ').map(Number);
+      if (progress[0] === progress[1]) break;
+      let found = false;
+      for (let n = 0; n < progress[1] - progress[0]; n++) {
+        key('n');
+        if (document.querySelector('#announcement')!.textContent === 'Freccia selezionata. Uscita libera.') { found = true; break; }
+      }
+      if (!found) throw new Error('No free piece found through keyboard selection');
+      key('Enter');
+      const save = JSON.parse(localStorage.getItem('svela-save-v1')!);
+      snapshots.push({ progress: document.querySelector('#progress-label')!.textContent, removed: save?.levels?.[save.activeLevel]?.removedIds ?? [] });
+    }
+    return snapshots;
+  }, count);
+}

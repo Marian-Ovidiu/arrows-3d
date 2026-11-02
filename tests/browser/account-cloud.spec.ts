@@ -23,6 +23,7 @@ test('account sync, profile, logout isolation and deletion failure/retry', async
     else if (url.pathname === '/rest/v1/game_progress') response = cloud;
     else if (url.pathname.endsWith('/save_game_progress')) {
       expect(body.p_catalog_version).toBe(CATALOG_VERSION);
+      expect(body.p_progress_version).toBe(3);
       if (body.p_expected_revision === cloud.revision) cloud = {save:body.p_save,revision:cloud.revision+1,updated_at:new Date().toISOString()};
       response = {...cloud,ok:body.p_expected_revision === cloud.revision-1};
     } else if (url.pathname.endsWith('/delete_own_account')) { if (failDeletion) { await route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({message:'temporary failure'})}); return; } deleted = true; response = true; }

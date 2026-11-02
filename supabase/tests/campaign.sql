@@ -31,7 +31,10 @@ select pg_catalog.set_config('request.jwt.claims','{"sub":"8f19325e-1fa4-488b-83
 do $$
 declare v_rejected boolean; v_solution jsonb := current_setting('test.solutions')::jsonb->'bosco-01-v1'; v_bad jsonb; v_result jsonb; v_save jsonb := current_setting('test.save')::jsonb;
 begin
-  begin perform public.start_timed_run('bosco-01-v1'); raise exception 'Undiscovered run allowed'; exception when invalid_parameter_value then null; end;
+  perform public.start_timed_run('bosco-01-v1');
+  if exists(select 1 from public.get_leaderboard('discoveries') where is_you) then raise exception 'Starting play forged a discovery'; end if;
+  begin perform public.start_timed_run('tutorial-v1'); raise exception 'Unranked run allowed'; exception when invalid_parameter_value then null; end;
+  begin perform public.start_timed_run('unknown'); raise exception 'Unknown level run allowed'; exception when invalid_parameter_value then null; end;
   for v_bad in select value from jsonb_array_elements(jsonb_build_array('[]'::jsonb, 'null'::jsonb, '["unknown"]'::jsonb, jsonb_set(v_solution,'{1}',v_solution->0), v_solution - 0)) loop
     v_rejected:=false;
     begin perform public.submit_discovery('bosco-01-v1',v_bad); exception when invalid_parameter_value then v_rejected:=true; end;

@@ -112,3 +112,32 @@ test('expanded campaign histories and original fifteen-level saves round-trip wi
   assert.deepEqual(parsed.bestTimes, { [first.key]: 12345, [last.key]: 98765 });
   assert.deepEqual(parseSaveState(JSON.stringify(parsed)), parsed);
 });
+
+test('attempts and earned rarity round-trip without changing the six-field version two envelope', () => {
+  const attempt = { elapsedMs: 12_345, hintsUsed: 3, hintWaitMs: 8_000, eligible: true, finished: false };
+  const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: order.slice(0, 3), attempt, rarity: 'rare' } } }));
+  assert.deepEqual(state.levels[first.key], { removedIds: order.slice(0, 3), attempt, rarity: 'rare' });
+  assert.deepEqual(Object.keys(state), ['version', 'activeLevel', 'completed', 'levels', 'bestTimes', 'tutorial']);
+  assert.deepEqual(parseSaveState(JSON.stringify(state)), state);
+});
+
+test('invalid optional counters and flags fail closed while unknown properties are removed', () => {
+  const valid = { elapsedMs: 12_345, hintsUsed: 2, hintWaitMs: 8_000, eligible: true, finished: false };
+  for (const invalid of [{ elapsedMs: -1 }, { elapsedMs: MAX_BEST_TIME_MS + 1 }, { hintsUsed: 0 }, { hintWaitMs: 30_001 }, { eligible: 'true' }, { finished: 'false' }]) {
+    const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: order.slice(0, 2), attempt: { ...valid, ...invalid }, rarity: 'legendary' } } }));
+    assert.equal(state.levels[first.key].attempt?.eligible, false);
+    assert.equal(state.levels[first.key].rarity, undefined);
+  }
+  const state = parseSaveState(encode({ levels: { [first.key]: { removedIds: [], attempt: { ...valid, extra: true }, rarity: 'common', extra: true } } }));
+  assert.deepEqual(state.levels[first.key], { removedIds: [], attempt: valid, rarity: 'common' });
+});
+
+test('history truncation disqualifies its clock and a complete history cannot resume its clock', () => {
+  const attempt = { elapsedMs: 10_000, hintsUsed: 0, hintWaitMs: 0, eligible: true, finished: false };
+  const invalid = parseSaveState(encode({ levels: { [first.key]: { removedIds: [order[0], 'bad'], attempt } } }));
+  assert.equal(invalid.levels[first.key].attempt?.eligible, false);
+  const complete = parseSaveState(encode({ levels: { [first.key]: { removedIds: order, attempt } } }));
+  assert.equal(complete.levels[first.key].attempt?.finished, true);
+  complete.levels[first.key].removedIds.pop();
+  assert.equal(parseSaveState(JSON.stringify(complete)).levels[first.key].attempt?.finished, true);
+});

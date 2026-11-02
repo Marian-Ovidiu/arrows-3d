@@ -54,7 +54,7 @@ Sette nuovi capitoli proseguono il viaggio con figure fisse da 36 a 59 pezzi e p
 - **Santuario dei venti** (41–45): strutture sottili e lunghe catene.
 - **Cuore dei mondi** (46–50): sintesi delle direzioni e finale della campagna.
 
-Il percorso consiglia un ordine; il selettore permette di esplorare liberamente. Il nucleo sigillato nasconde il reperto fino all'ultima estrazione. La rarità è prestabilita per ciascun reperto; i finali dei capitoli segnano le scoperte più preziose. I 15 reperti originali conservano la propria rarità.
+Il percorso consiglia un ordine; il selettore permette di esplorare liberamente. Il nucleo sigillato nasconde il reperto fino all'ultima estrazione. La qualità della reliquia dipende dal tempo attivo della partita: comune, insolita, rara o epica. Ogni livello ha soglie proprie. La collezione conserva sempre la qualità migliore raggiunta; le scoperte dei vecchi salvataggi mantengono almeno la loro rarità precedente.
 
 La stanza delle reliquie mostra sagome per gli oggetti mancanti e sculture 3D ruotabili per quelli svelati, con nome, storia, rarità e record personale. Si può filtrare per rarità. Completare una serie aggiunge un piedistallo con miniature al visualizzatore. Ricominciare o annullare non toglie i reperti già ottenuti.
 
@@ -64,16 +64,20 @@ I capitoli 4–10 usano scenografie procedurali dedicate e aggregate in poche me
 
 I tre GLB locali pesano complessivamente 625.708 byte e non dipendono da texture o servizi esterni. Ogni capitolo usa 6–13 primitive e meno di 8.000 vertici. Il modello viene caricato al primo ingresso e riutilizzato; durante il caricamento o in caso di errore resta disponibile la decorazione procedurale. Il precache PWA comprende tutti i modelli per l'uso offline. Sorgente Blender, anteprima, script riproducibile e metriche sono descritti in [art/environments/README.md](art/environments/README.md).
 
-## Prove a tempo e classifiche
+## Tempo discreto, reliquie evolutive e classifiche
 
-Dopo la prima scoperta di un livello si sblocca **Prova a tempo**, dalla collezione, dalla pausa e dalla vittoria. Il cronometro parte con **Inizia** e si ferma all'accettazione dell'ultima estrazione; le animazioni non allungano il record personale. Suggerimenti, annullamenti, pausa, cambio livello, perdita del fuoco o passaggio in background interrompono il tentativo. Si può continuare liberamente senza registrare un tempo. I record personali sono disponibili anche come ospite e offline.
+Ogni partita di campagna misura automaticamente il tempo appena il puzzle è giocabile, senza pulsante di partenza e senza cronometro durante il gioco. Il tempo si ferma all’accettazione dell’ultima estrazione; il risultato compare insieme alla reliquia. Pause, istruzioni, finestre modali, cambio schermata, perdita del fuoco e background sospendono il tempo locale. La partita riprende con lo stesso tempo anche dopo un reload. La qualità dipende dalle soglie specifiche del livello in `src/progression.ts`, consultabili dopo la scoperta nel dettaglio della reliquia. Le soglie iniziali sono una taratura di progetto da validare con giocatori, non statistiche osservate.
 
-Le classifiche online richiedono un account e la nuova migrazione SQL:
+Completare il livello assegna sempre la reliquia. **Rigioca** avvia una nuova partita che può migliorarne qualità e tempo personale, senza abbassare una qualità già ottenuta. Materiali e ornamenti cambiano con la qualità. Le partite parziali provenienti dai vecchi salvataggi possono ancora essere completate, ma non ricevono un tempo inventato: per un nuovo record occorre ricominciare.
 
-- **Esploratori**: numero di livelli distinti completati con soluzione verificata. I replay non aumentano il conteggio e i punteggi uguali condividono la posizione.
-- **Tempi per livello**: migliore prova registrata dal server per quel puzzle. Partenza, durata, proprietà del tentativo e soluzione completa sono verificati sul server. I tentativi sono monouso, associati alla sessione e sostituiti dall'avvio di un altro.
+Gli aiuti e gli annullamenti sono ammessi. Dopo ciascuna lampadina occorre attendere 5, 10, 15, 20, 25 e poi al massimo 30 secondi prima di riutilizzarla. L’attesa trascorre solo mentre si gioca e viene salvata con il numero di aiuti; pausa e riapertura non la azzerano. Il tutorial resta guidato senza questo intervallo.
 
-Il tempo online comprende la comunicazione di partenza e arrivo al server e può differire dal cronometro personale. Queste verifiche respingono tempi arbitrari e sequenze illegali; non proteggono da bot che risolvono automaticamente il puzzle. Il nome pubblico è modificabile dal menu account. Inizialmente si usa il solo nome Google (`given_name`, oppure la prima parola del nome completo); un soprannome scelto nel gioco ha sempre precedenza. Senza un nome disponibile si usa uno pseudonimo. Le classifiche non espongono email. Non ci sono partecipanti o punteggi simulati nell'app. Attivazione e test sono descritti in [CAMPAIGN_SETUP.md](CAMPAIGN_SETUP.md).
+Le classifiche online richiedono un account e tutte le migrazioni SQL:
+
+- **Scoperte**: numero di livelli distinti completati con soluzione verificata. I replay non aumentano il conteggio e i punteggi uguali condividono la posizione.
+- **Tempi per livello**: ogni nuova partita online può registrare un tempo già alla prima scoperta. Gli aiuti e gli annullamenti sono ammessi; per il tempo online la partita deve essere continua nella stessa sessione. Pausa, uscita, reload, perdita del fuoco o background escludono quel tempo online, ma conservano tempo personale e qualità locale. Partenza, durata, proprietà del tentativo e soluzione completa vengono verificati sul server.
+
+Il tempo online comprende la comunicazione di partenza e arrivo al server e può differire dal tempo attivo personale. I record e le qualità locali non attestano un tempo nella classifica online. Le verifiche respingono tempi arbitrari e sequenze illegali; non proteggono da bot che risolvono automaticamente il puzzle. Il nome pubblico è modificabile dal menu account. Non ci sono partecipanti o punteggi simulati nell’app; le classifiche non espongono email. Attivazione e test sono descritti in [CAMPAIGN_SETUP.md](CAMPAIGN_SETUP.md).
 
 ## Primi passi
 
@@ -99,7 +103,8 @@ L’integrazione Capacitor non registra il service worker. `node scripts/pwa-ass
 - `src/chapter-environment.ts`: decorazioni di capitolo e disposizione ai margini indipendente dalla camera orbitale.
 - `src/chapter-assets.ts`: caricamento dei GLB, istanze con materiali indipendenti e normalizzazione nello spazio protetto.
 - `src/metagame-ui.ts`: collezione, filtri, visualizzatore e classifiche.
-- `src/time-trial.ts`: durata e validità delle prove senza interruzioni.
+- `src/time-trial.ts`: tempo attivo e attesa degli aiuti, entrambi ripristinabili.
+- `src/progression.ts`: soglie per livello e qualità permanente delle reliquie.
 - `src/leaderboard.ts`: registrazione delle scoperte e prove online.
 - `src/main.ts`: scena, oggetti procedurali, animazioni, input e interfaccia.
 - `src/tutorial.ts`: istruzioni e bersagli derivati da progressi, pezzi rimasti e selezione.

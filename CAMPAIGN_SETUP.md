@@ -6,6 +6,7 @@ La campagna e i record personali funzionano senza un server. La sincronizzazione
 2. `supabase/migrations/20261101162235_fantasy_campaign_rankings.sql`
 3. `supabase/migrations/20261102090348_google_first_name.sql`
 4. `supabase/migrations/20261102102822_campaign_fifty_levels.sql`
+5. `supabase/migrations/20261102115114_unified_campaign_progress.sql`
 
 La migrazione `20261102090348_google_first_name.sql` aggiorna inoltre i nomi pubblici: soprannome scelto, altrimenti solo nome Google, infine pseudonimo. Non modifica i dati degli utenti. Su un progetto già configurato si applicano solo le migrazioni mancanti. Con un progetto collegato alla CLI:
 
@@ -20,11 +21,11 @@ In alternativa esegui il file completo nel SQL Editor come proprietario del data
 Il catalogo autorevole e le classifiche risiedono nello schema `svela_private`, con RLS attiva e senza accesso diretto per `anon` o `authenticated`. Le RPC pubbliche controllano l'account e le scritture riguardano soltanto le righe del chiamante. La lettura delle classifiche espone soltanto i campi pubblici previsti. Le tabelle di risultati e tentativi vengono eliminate a cascata cancellando l'account.
 
 - `submit_discovery`: verifica una sequenza completa contro posizioni, direzioni e nucleo del catalogo, poi registra una scoperta permanente per coppia account/livello.
-- `start_timed_run`: richiede la scoperta verificata, registra l'ora del server e associa un tentativo alla sessione. Una nuova partenza sostituisce quella precedente dell'account.
-- `finish_timed_run`: verifica proprietà, sessione, scadenza e sequenza completa, consuma il tentativo e conserva il miglior tempo.
+- `start_timed_run`: ammette qualunque livello di campagna valido già alla prima partita, registra l’ora del server e associa un tentativo alla sessione. Una nuova partenza sostituisce quella precedente dell'account.
+- `finish_timed_run`: verifica proprietà, sessione, scadenza e sequenza completa, consuma il tentativo, registra anche la scoperta e conserva il miglior tempo.
 - `get_leaderboard`: restituisce fino a 50 posizioni, con nome pubblico o pseudonimo, valore e indicazione della propria riga. Non espone email o dati di sessione.
 
-Il salvataggio locale/cloud include `bestTimes`, ma questi valori non vengono usati come prove per la classifica online. I tempi online sono misurati dal server e comprendono la latenza di rete. Il protocollo respinge tempi inviati dal client, sequenze impossibili e riuso di un tentativo; non impedisce a un bot di calcolare e inviare una soluzione valida. Pause, aiuti e sospensioni vengono esclusi dal client ufficiale, non costituiscono un'attestazione del comportamento di client modificati.
+Il salvataggio locale/cloud include `bestTimes`, ma questi valori non vengono usati come prove per la classifica online. I tempi online sono misurati dal server e comprendono la latenza di rete. Il protocollo respinge tempi inviati dal client, sequenze impossibili e riuso di un tentativo; non impedisce a un bot di calcolare e inviare una soluzione valida. Gli aiuti e gli annullamenti sono ammessi anche per il tempo online. Pause e sospensioni escludono il solo tentativo online nel client ufficiale; non costituiscono un’attestazione del comportamento di client modificati. Tempo attivo personale e qualità restano indipendenti dal record misurato sul server.
 
 Le soluzioni completate vengono conservate in `levels[key].solutionIds`, separatamente da `removedIds`, che descrive la partita corrente. Aprire o aggiornare le classifiche pubblica le prove disponibili: una scoperta offline resta registrabile anche dopo aver ricominciato il puzzle. I tempi offline restano record personali, senza essere promossi retroattivamente a tempi online.
 
@@ -45,7 +46,7 @@ SVELA_ACCOUNT_TEST=1 npx playwright test tests/browser/account-cloud.spec.ts tes
 npm run build
 ```
 
-L'ultimo comando ripristina la build con la configurazione abituale. Il test browser standard include anche collezione, filtri, layout, persistenza, migrazione della demo, sblocco e invalidazione delle prove a tempo.
+L'ultimo comando ripristina la build con la configurazione abituale. Il test browser standard include anche collezione, filtri, layout, persistenza, migrazione della demo, tempo automatico, attesa degli aiuti, qualità ottenute e compatibilità dei progressi.
 
 ## Estendere il catalogo
 
@@ -65,3 +66,11 @@ Applicare la quarta migrazione prima di distribuire il nuovo frontend. Aggiunge 
 La RPC `save_game_progress` accetta inoltre `p_catalog_version`, inviato dal client attuale. Se un salvataggio contiene progressi dei nuovi capitoli, un client precedente non può sovrascriverlo eliminandoli. Gli errori di revisione continuano a restituire il conflitto normale; una scelta esplicita del client aggiornato può ancora sostituire il proprio salvataggio. I client precedenti possono continuare a salvare finché l’account non contiene riferimenti ai nuovi livelli.
 
 Verifiche aggiuntive: `node scripts/export-catalog.mjs --check`, `supabase/tests/expansion.sql` e `tests/browser/expansion.spec.ts`. I test SQL vanno eseguiti dopo tutte le migrazioni, su un database di test; terminano con `ROLLBACK`.
+
+## Tempo e qualità nella partita ordinaria
+
+Applicare la quinta migrazione prima di distribuire il frontend aggiornato. Il formato resta v2 con sei campi principali; ogni `levels[key]` può ora includere `rarity` e `attempt` (`elapsedMs`, `hintsUsed`, `hintWaitMs`, `eligible`, `finished`). Le quantità vengono validate e il server conserva lo stesso confronto atomico di revisione. I campi locali non costituiscono prove per classifiche o scoperte verificate.
+
+Il client invia `p_progress_version: 3` a `save_game_progress`. Dopo il primo salvataggio dei nuovi campi, i client precedenti non possono eliminarli sovrascrivendo i progressi; un client aggiornato conserva la possibilità di sostituire esplicitamente il proprio salvataggio in caso di conflitto. Le identità dei 50 puzzle non cambiano.
+
+Eseguire anche `supabase/tests/unified-progress.sql` dopo le migrazioni e `tests/browser/unified-play.spec.ts` nella suite browser. Il primo verifica forma, limiti, compatibilità, CAS e primo risultato online; il secondo verifica pause, reload, aiuti e qualità permanente.

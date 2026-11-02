@@ -1,18 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { LEVELS, CAMPAIGN_INDEXES, TUTORIAL_INDEX, solve } from '../../src/puzzle';
-import { chooseLevel, continueGame } from './navigation';
+import { chooseLevel, continueGame, extractPieces } from './navigation';
 
 test.use({ viewport: { width: 390, height: 844 } });
-async function extract(page: Page, count: number) {
-  await page.evaluate(count => {
-    const canvas = document.querySelector('canvas')!;
-    for (let i = 0; i < count; i++) {
-      document.querySelector<HTMLButtonElement>('#hint')!.click();
-      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    }
-  }, count);
-}
-
 test('a fifteen-level save preserves its undo history, records and tutorial in the expanded journey', async ({ page }) => {
   const old = LEVELS[14];
   const removedIds = solve(old.pieces)!.slice(0, 3);
@@ -24,7 +14,7 @@ test('a fifteen-level save preserves its undo history, records and tutorial in t
   await page.locator('#undo').click();
   await expect(page.locator('#progress-label')).toHaveText(`2 / ${old.pieces.length}`);
   await chooseLevel(page, 15);
-  await extract(page, 2);
+  await extractPieces(page, 2);
   await page.reload();
   await continueGame(page);
   await expect(page.locator('#progress-label')).toHaveText(`2 / ${LEVELS[15].pieces.length}`);
@@ -49,7 +39,7 @@ test('each new chapter renders, completes, reveals its relic and continues to th
     await expect(page.locator('#app')).toHaveAttribute('data-environment-source', 'procedural');
     await expect(page.locator('#app')).toHaveAttribute('data-chapter', String(LEVELS[index].chapter));
     await page.screenshot({ path: `test-results/expansion-chapter-${LEVELS[index].chapter}-phone.png` });
-    await extract(page, LEVELS[index].pieces.length);
+    await extractPieces(page, LEVELS[index].pieces.length);
     await expect(page.locator('#win-dialog')).toBeVisible();
     await expect(page.locator('#win-title')).toHaveText(LEVELS[index].artifact);
     await page.locator('#next-level').click();
@@ -72,7 +62,7 @@ test('level fifty finishes the journey and all new sculptures can be inspected o
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto('/');
   await continueGame(page);
-  await extract(page, LEVELS[last].pieces.length);
+  await extractPieces(page, LEVELS[last].pieces.length);
   await expect(page.locator('#win-dialog')).toBeVisible();
   await expect(page.locator('#win-count')).toContainText('50/50');
   await page.locator('#next-level').click();

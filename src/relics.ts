@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import type { RewardKind } from './puzzle';
+import type { Rarity, RewardKind } from './puzzle';
 
 /** Small, lit sculptures shared by the puzzle core and the collection viewer. */
-export function createRelic(kind: RewardKind): THREE.Group {
+export function createRelic(kind: RewardKind, rarity?: Rarity): THREE.Group {
   const root = new THREE.Group();
   root.name = `relic-${kind}`;
   const material = (color: number, metalness = 0, roughness = 0.4, glow?: number) => new THREE.MeshStandardMaterial({
@@ -439,6 +439,59 @@ export function createRelic(kind: RewardKind): THREE.Group {
       line([[-0.06, -0.07, 0.16], [-0.08, -0.17, 0.13], [-0.04, -0.25, 0.1]], 0.022, blue);
       jewel(0.03, gold, 0.12, -0.3, 0);
       break;
+    }
+  }
+
+  // A relic keeps its own silhouette as its earned quality develops. The optional
+  // argument preserves the original palette for callers rendering legacy art.
+  if (rarity) {
+    root.userData.rarity = rarity;
+    const palette = [jade, deep, gold, ivory, blue, rose, light, glass];
+    if (rarity === 'common') {
+      for (const mat of palette) {
+        mat.color.lerp(new THREE.Color(0x898b7a), .5);
+        mat.metalness *= .45;
+        mat.roughness = Math.max(mat.roughness, .62);
+        mat.emissiveIntensity = 0;
+      }
+    } else {
+      for (const mat of palette) {
+        mat.color.offsetHSL(0, .08, rarity === 'epic' ? .025 : 0);
+        mat.roughness = Math.max(.18, mat.roughness - .08);
+      }
+      gold.metalness = .85;
+      if (rarity === 'rare' || rarity === 'epic') {
+        root.updateMatrixWorld(true);
+        const qualityBounds = new THREE.Box3().setFromObject(root);
+        const center = qualityBounds.getCenter(new THREE.Vector3());
+        const size = qualityBounds.getSize(new THREE.Vector3());
+        const width = Math.max(size.x, .3);
+        const height = Math.max(size.y, .3);
+        const front = qualityBounds.max.z + .015;
+        // Fine gold settings and cut stones frame, rather than replace, the art.
+        for (const direction of [-1, 1]) {
+          const x = center.x + direction * width * .43;
+          const y = center.y - height * .29;
+          const setting = ring(.035, .008, gold, x, y, front);
+          setting.name = 'quality-setting';
+          const crystal = jewel(.025, blue, x, y, front + .018);
+          crystal.name = 'quality-crystal';
+          crystal.scale.set(.75, 1.3, .7);
+        }
+        if (rarity === 'epic') {
+          const haloRadius = Math.max(width, height) * .56;
+          const halo = ring(haloRadius, .009, gold, center.x, center.y, qualityBounds.min.z - .025);
+          halo.name = 'quality-halo';
+          for (let i = 0; i < 4; i++) {
+            const angle = Math.PI / 4 + i * Math.PI / 2;
+            const ornament = jewel(.035, light, center.x + Math.cos(angle) * haloRadius, center.y + Math.sin(angle) * haloRadius, qualityBounds.min.z - .025);
+            ornament.name = 'quality-ornament';
+            ornament.rotation.z = -angle;
+          }
+          blue.emissiveIntensity = .55;
+          light.emissiveIntensity = .55;
+        }
+      }
     }
   }
 

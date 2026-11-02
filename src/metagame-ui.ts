@@ -1,8 +1,9 @@
 import { LEVELS, CHAPTERS, CAMPAIGN_INDEXES, type Level } from './puzzle';
-import { accountState } from './account';
+import { accountState, AccountFeatureError } from './account';
 import { getLeaderboard, submitDiscovery, type LeaderboardKind } from './leaderboard';
 import type { SaveState } from './save-state';
 import { formatTime } from './time-trial';
+import { relicRarity, thresholdsForLevel } from './progression';
 import { icon, relicIcon, chapterIcon, pips, RARITY_PIPS } from './ui-icons';
 
 export const RARITIES = { common: 'Comune', uncommon: 'Insolito', rare: 'Raro', epic: 'Epico' } as const;
@@ -11,8 +12,7 @@ type Hooks = {
   getSave(): SaveState;
   screen(next: 'home' | 'collection' | 'rankings'): void;
   preview(level: Level, discovered: boolean): void;
-  play(index: number): void;
-  trial(index: number): void;
+  play(index: number, restart?: boolean): void;
   account(): void;
 };
 
@@ -35,7 +35,8 @@ export function initMetagame(hooks: Hooks) {
         <h3 id="relic-name"></h3>
         <p id="relic-lore"></p>
         <p id="relic-record" class="chip relic-record"></p>
-        <div class="relic-actions"><button id="relic-play" class="play-button"></button><button id="relic-trial" class="play-button">${icon('clock')}Sfida</button></div>
+        <details id="relic-quality" class="relic-quality"><summary>Qualità della reliquia</summary><p>Rigioca per affinare questo reperto. La qualità migliore resta tua.</p><dl id="relic-thresholds"></dl></details>
+        <div class="relic-actions"><button id="relic-play" class="play-button"></button></div>
       </div>
     </section>
     <section id="rankings-screen" class="screen rankings-screen" aria-label="Classifica">
@@ -60,23 +61,26 @@ export function initMetagame(hooks: Hooks) {
     const level = LEVELS[index];
     const save = hooks.getSave();
     const unlocked = save.completed.includes(level.key);
+    const rarity = relicRarity(level, save);
     const detail = el('relic-detail');
     closing?.cancel();
     detail.hidden = false;
-    detail.dataset.tone = unlocked ? level.rarity : 'unknown';
+    detail.dataset.tone = unlocked ? rarity : 'unknown';
     el('relic-chapter').innerHTML = `${chapterIcon(level.chapter)}<span>${index + 1}</span>`;
     el('relic-chapter').setAttribute('aria-label', `${CHAPTERS.find(chapter => chapter.id === level.chapter)!.name}, livello ${index + 1}`);
     el('relic-name').textContent = unlocked ? level.artifact : 'Una meraviglia da svelare';
     el('relic-lore').textContent = unlocked ? level.lore : '';
-    el('relic-pips').innerHTML = pips(RARITY_PIPS[level.rarity]);
-    el('relic-rarity').textContent = unlocked ? RARITIES[level.rarity] : '?';
-        const best = save.bestTimes[level.key];
-    el('relic-record').innerHTML = best ? `${icon('clock')}<span class="sr-only">Record personale</span>${formatTime(best)}` : unlocked ? '' : `${icon('view')}${level.pieces.length}`;
+    el('relic-pips').innerHTML = unlocked ? pips(RARITY_PIPS[rarity]) : '';
+    el('relic-rarity').textContent = unlocked ? RARITIES[rarity] : '';
+    el('relic-pips').parentElement!.hidden = !unlocked;
+    const best = save.bestTimes[level.key];
+    el('relic-record').innerHTML = unlocked && best ? `${icon('clock')}<span class="sr-only">Record personale</span>${formatTime(best)}` : unlocked ? '' : `${icon('view')}${level.pieces.length}`;
     el('relic-record').hidden = !el('relic-record').innerHTML;
-    el('relic-play').innerHTML = unlocked ? icon('restart') : `${icon('play')}Gioca`;
-    el('relic-play').classList.toggle('is-compact', unlocked);
+    el('relic-quality').hidden = !unlocked;
+    const thresholds = thresholdsForLevel(level);
+    el('relic-thresholds').innerHTML = (['epic', 'rare', 'uncommon'] as const).map(quality => `<div><dt>${RARITIES[quality]}</dt><dd>entro ${formatTime(thresholds[`${quality}Ms`])}</dd></div>`).join('');
+    el('relic-play').innerHTML = unlocked ? `${icon('restart')}Rigioca` : `${icon('play')}Gioca`;
     el('relic-play').setAttribute('aria-label', unlocked ? 'Rigioca il livello' : 'Gioca il livello');
-    el<HTMLButtonElement>('relic-trial').hidden = !unlocked;
     document.querySelectorAll<HTMLElement>('[data-relic]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.relic) === index)));
     hooks.preview(level, unlocked);
   }
@@ -102,14 +106,16 @@ export function initMetagame(hooks: Hooks) {
     el('relic-shelves').innerHTML = CHAPTERS.map(chapter => {
       const indexes = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === chapter.id);
       const collected = indexes.filter(index => save.completed.includes(LEVELS[index].key)).length;
-      const visible = indexes.filter(index => rarityFilter === 'all' || LEVELS[index].rarity === rarityFilter);
+      const visible = indexes.filter(index => rarityFilter === 'all' || (save.completed.includes(LEVELS[index].key) && relicRarity(LEVELS[index], save) === rarityFilter));
       if (!visible.length) return '';
       const complete = collected === indexes.length;
       return `<section class="relic-shelf ${complete ? 'shelf-complete' : ''}" data-chapter="${chapter.id}"><header><span class="shelf-icon">${chapterIcon(chapter.id)}</span><h3>${chapter.name}</h3><span class="shelf-count">${complete ? `${icon('check')}${collected}/${indexes.length}` : `${collected}/${indexes.length}`}</span></header><div class="relic-grid">${visible.map(index => {
         const level = LEVELS[index], unlocked = save.completed.includes(level.key);
-        return `<button class="relic-card ${unlocked ? 'is-discovered' : 'is-mystery'}" data-relic="${index}" data-tone="${unlocked ? level.rarity : 'unknown'}" aria-pressed="${index === selected}" aria-label="${unlocked ? `${level.artifact}, ${RARITIES[level.rarity]}` : `Reperto sconosciuto, scoperta ${index + 1}`}" style="--i:${order++}">${relicIcon(level.reward)}${pips(RARITY_PIPS[level.rarity])}</button>`;
+        const rarity = relicRarity(level, save);
+        return `<button class="relic-card ${unlocked ? 'is-discovered' : 'is-mystery'}" data-relic="${index}" data-tone="${unlocked ? rarity : 'unknown'}" aria-pressed="${index === selected}" aria-label="${unlocked ? `${level.artifact}, ${RARITIES[rarity]}` : `Reperto sconosciuto, scoperta ${index + 1}`}" style="--i:${order++}">${relicIcon(level.reward)}${unlocked ? pips(RARITY_PIPS[rarity]) : ''}</button>`;
       }).join('')}</div></section>`;
     }).join('');
+    if (!el('relic-shelves').childElementCount) el('relic-shelves').innerHTML = '<p class="ranking-status">Non hai ancora reliquie di questa qualità.</p>';
     el('relic-shelves').querySelectorAll<HTMLElement>('[data-relic]').forEach(button => button.addEventListener('click', () => selectRelic(Number(button.dataset.relic))));
     if (!el('relic-detail').hidden) selectRelic(selected);
   }
@@ -150,17 +156,24 @@ export function initMetagame(hooks: Hooks) {
     el('ranking-message').classList.add('is-loading');
     try {
       const save = hooks.getSave();
-      // Completed offline histories can join the count ranking on reconnect.
+      let pendingDiscoveries = false;
+      // Registration is best effort: one rejected proof cannot hide readable rankings.
       for (const index of CAMPAIGN_INDEXES) {
         const level = LEVELS[index];
         const ids = save.levels[level.key]?.solutionIds ?? save.levels[level.key]?.removedIds;
-        if (ids?.length === level.pieces.length) await submitDiscovery(level.key, ids);
+        if (ids?.length === level.pieces.length) {
+          try { await submitDiscovery(level.key, ids); }
+          catch (error) {
+            if (!(error instanceof AccountFeatureError) || !['invalid', 'migration'].includes(error.code)) throw error;
+            pendingDiscoveries = true;
+          }
+        }
         if (version !== requestVersion || owner !== accountState().user?.id) return;
       }
       const rows = await getLeaderboard(requestedKind, requestedKind === 'time' ? key : undefined);
       if (version !== requestVersion || owner !== accountState().user?.id) return;
       el('ranking-message').classList.remove('is-loading');
-      setStatus(rows.length ? '' : 'La prima traccia può essere la tua.');
+      setStatus(pendingDiscoveries ? 'Alcune scoperte attendono la verifica online. I progressi restano salvati.' : rows.length ? '' : 'La prima traccia può essere la tua.');
       el('ranking-list').classList.toggle('has-podium', rows.length >= 3);
       rows.forEach((row, order) => {
         const item = document.createElement('li');
@@ -191,8 +204,7 @@ export function initMetagame(hooks: Hooks) {
     void refreshRankings();
   }
   el('relic-close').addEventListener('click', closeDetail);
-  el('relic-play').addEventListener('click', () => hooks.play(selected));
-  el('relic-trial').addEventListener('click', () => hooks.trial(selected));
+  el('relic-play').addEventListener('click', () => hooks.play(selected, hooks.getSave().completed.includes(LEVELS[selected].key)));
   document.querySelectorAll<HTMLElement>('.collection-filters [data-rarity]').forEach(button => button.addEventListener('click', () => {
     rarityFilter = button.dataset.rarity!;
     document.querySelectorAll<HTMLElement>('.collection-filters [data-rarity]').forEach(filter => filter.setAttribute('aria-pressed', String(filter === button)));

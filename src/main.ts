@@ -21,7 +21,8 @@ import { playSound, soundEnabled, toggleSound } from './sound';
 import { LEVELS, CHAPTERS, CAMPAIGN_INDEXES, JOURNEY_INDEXES, TUTORIAL_INDEX, getExit, getAvailable, type Piece, type Level } from './puzzle';
 import { createRelic } from './relics';
 import { initMetagame, RARITIES } from './metagame-ui';
-import { TimeTrial, formatTime } from './time-trial';
+import { PlaySession, formatTime } from './time-trial';
+import { relicRarity, rarityForTime, bestRarity } from './progression';
 import { submitDiscovery, startTimedRun, finishTimedRun } from './leaderboard';
 import { ChapterEnvironment } from './chapter-environment';
 import { icon, relicIcon, chapterIcon, pips, RARITY_PIPS } from './ui-icons';
@@ -33,13 +34,13 @@ function mapTrack(indexes: readonly number[], chapter: number) {
   const height = points.at(-1)!.y + 62;
   const curve = (from: typeof points[number], to: typeof points[number]) => `M${from.x} ${from.y}C${from.x} ${from.y + NODE_GAP / 2} ${to.x} ${to.y - NODE_GAP / 2} ${to.x} ${to.y}`;
   const segments = points.slice(1).map((point, order) => `<path data-segment="${points[order].index}" d="${curve(points[order], point)}"/>`).join('');
-  return `<div class="map-track" style="height:${height}px"><svg class="map-path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><g class="path-base">${segments}</g><g class="path-top">${segments}</g></svg>${points.map(({ index, x, y }, order) => `<button class="journey-node${x > 55 ? ' label-left' : ''}" data-level="${index}" data-tone="${LEVELS[index].rarity}" aria-pressed="false" style="left:${x.toFixed(1)}%;top:${y}px;--i:${order}"><span class="node-art">${index === TUTORIAL_INDEX ? icon('sparkle') : `<span class="node-number">${index + 1}</span>`}<span class="tab-check" aria-label=""></span></span><span class="node-copy"><strong>${LEVELS[index].name}</strong><span class="node-progress"></span></span></button>`).join('')}</div>`;
+  return `<div class="map-track" style="height:${height}px"><svg class="map-path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><g class="path-base">${segments}</g><g class="path-top">${segments}</g></svg>${points.map(({ index, x, y }, order) => `<button class="journey-node${x > 55 ? ' label-left' : ''}" data-level="${index}" data-tone="unknown" aria-pressed="false" style="left:${x.toFixed(1)}%;top:${y}px;--i:${order}"><span class="node-art">${index === TUTORIAL_INDEX ? icon('sparkle') : `<span class="node-number">${index + 1}</span>`}<span class="tab-check" aria-label=""></span></span><span class="node-copy"><strong>${LEVELS[index].name}</strong><span class="node-progress"></span></span></button>`).join('')}</div>`;
 }
 function journeyMap() {
   const intro = `<section class="map-chapter map-intro" data-chapter="0">${mapTrack([TUTORIAL_INDEX], 0)}</section>`;
   return intro + CHAPTERS.map(chapter => {
     const indexes = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === chapter.id);
-    return `<section class="map-chapter" data-chapter="${chapter.id}"><div class="journey-chapter chapter-banner"><span class="banner-icon">${chapterIcon(chapter.id)}</span><div class="banner-copy"><h3>${chapter.name}</h3><div class="relic-slots">${indexes.map(index => `<span class="relic-slot" data-slot="${index}" data-tone="${LEVELS[index].rarity}">${relicIcon(LEVELS[index].reward)}</span>`).join('')}</div></div></div>${mapTrack(indexes, chapter.id)}</section>`;
+    return `<section class="map-chapter" data-chapter="${chapter.id}"><div class="journey-chapter chapter-banner"><span class="banner-icon">${chapterIcon(chapter.id)}</span><div class="banner-copy"><h3>${chapter.name}</h3><div class="relic-slots">${indexes.map(index => `<span class="relic-slot" data-slot="${index}" data-tone="unknown">${relicIcon(LEVELS[index].reward)}</span>`).join('')}</div></div></div>${mapTrack(indexes, chapter.id)}</section>`;
   }).join('');
 }
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -61,7 +62,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <span class="hud-meter" aria-hidden="true"><span id="progress-fill"></span></span>
       </div>
       <p class="level-toast" id="level-focus" role="status" hidden></p>
-      <div class="trial-status" id="trial-status" hidden>${icon('clock')}<span id="trial-label" role="status">PROVA A TEMPO</span><span id="trial-clock" aria-label="Tempo della prova">00:00.000</span></div>
       <div class="tutorial-card" id="tutorial-card" hidden>
         <div class="tutorial-heading"><span class="tutorial-steps" id="tutorial-step"></span><button id="skip-tutorial">Salta ${icon('next')}</button></div>
         <div role="status" aria-live="polite"><strong id="tutorial-title"></strong><p id="tutorial-description"></p></div>
@@ -69,7 +69,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <p class="graphics-warning" id="graphics-warning" role="status" hidden>La grafica è in pausa. La partita è salvata.</p>
       <div class="tool-rail" id="game-tools">
         <button id="undo" class="round-button" title="Annulla" aria-label="Annulla l’ultima estrazione" disabled>${icon('undo')}</button>
-        <button id="hint" class="round-button hint-button" title="Suggerimento" aria-label="Suggerimento: trova una freccia libera">${icon('hint')}</button>
+        <button id="hint" class="round-button hint-button" title="Suggerimento" aria-label="Suggerimento: trova una freccia libera">${icon('hint')}<span id="hint-wait" class="hint-wait" aria-hidden="true" hidden></span></button>
         <button id="view" class="round-button" title="Ripristina la vista" aria-label="Ripristina la vista">${icon('view')}</button>
       </div>
     </section>
@@ -99,7 +99,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <button id="restart" class="tile">${icon('restart')}<span>Da capo</span></button>
       <button id="pause-journey" class="tile">${icon('map')}<span>Mappa</span></button>
       <button id="pause-collection" class="tile">${icon('gem')}<span>Reliquie</span></button>
-      <button id="pause-trial" class="tile" hidden>${icon('clock')}<span>Sfida</span></button>
       <button id="pause-settings" class="tile">${icon('settings')}<span>Opzioni</span></button>
       <button id="pause-home" class="tile">${icon('home')}<span>Home</span></button>
     </div>
@@ -113,7 +112,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   </dialog>
   <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
   <p id="save-warning" class="save-warning" role="status" hidden>Salvataggio non disponibile. Tieni aperto il gioco per conservare questa partita.</p>
-  <dialog id="help-dialog" class="sheet" aria-labelledby="help-title"><button class="dialog-close round-button" aria-label="Chiudi istruzioni">${icon('close')}</button><h2 class="sheet-title" id="help-title">Come si gioca</h2><ol class="help-steps"><li>${icon('restart')}<strong>Ruota</strong><span>Trascina la figura in ogni direzione.</span></li><li>${icon('hint')}<strong>Tocca un cubo</strong><span>La luce segue la sua freccia.</span></li><li>${icon('next')}<strong>Tocca ancora</strong><span>Esce solo se la strada è libera.</span></li><li>${icon('gem')}<strong>Svela</strong><span>Libera tutto e trova la reliquia.</span></li></ol><details><summary>Tastiera</summary><p>Frecce per ruotare, + e − per lo zoom, N per selezionare, Invio per estrarre, Esc per deselezionare.</p></details><button id="start" class="play-button">Ho capito</button></dialog>
+  <dialog id="help-dialog" class="sheet" aria-labelledby="help-title"><button class="dialog-close round-button" aria-label="Chiudi istruzioni">${icon('close')}</button><h2 class="sheet-title" id="help-title">Come si gioca</h2><ol class="help-steps"><li>${icon('restart')}<strong>Ruota</strong><span>Trascina la figura in ogni direzione.</span></li><li>${icon('hint')}<strong>Tocca un cubo</strong><span>La luce segue la sua freccia.</span></li><li>${icon('next')}<strong>Tocca ancora</strong><span>Esce solo se la strada è libera.</span></li><li>${icon('gem')}<strong>Svela</strong><span>Libera tutto e trova la reliquia.</span></li></ol><details><summary>Reliquie e aiuti</summary><p>Ogni livello svela una reliquia. Alla fine scopri il tempo e la qualità ottenuta: puoi migliorarla rigiocando, senza perdere quella già raggiunta. Fra un suggerimento e il successivo l’attesa cresce da 5 fino a 30 secondi. In pausa il tempo si ferma.</p></details><details><summary>Tastiera</summary><p>Frecce per ruotare, + e − per lo zoom, N per selezionare, Invio per estrarre, Esc per deselezionare.</p></details><button id="start" class="play-button">Ho capito</button></dialog>
   <dialog id="win-dialog" class="win-dialog" aria-labelledby="win-title">
     <div class="win-rays" aria-hidden="true"></div>
     <p class="win-heading" aria-hidden="true">Svelato!</p>
@@ -127,13 +126,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="win-actions">
       <button id="next-level" class="play-button">Avanti ${icon('next')}</button>
       <div class="win-secondary">
-        <button id="win-trial" class="round-button" aria-label="Sfida a tempo">${icon('clock')}</button>
+        <button id="win-replay" class="round-button" aria-label="Rigioca questo livello">${icon('restart')}</button>
         <button id="win-collection" class="round-button" aria-label="Vedi la reliquia">${icon('gem')}</button>
         <button id="admire" class="round-button" aria-label="Resta a guardare">${icon('eye')}</button>
       </div>
     </div>
   </dialog>
-  <dialog id="trial-ready-dialog" class="sheet" aria-labelledby="trial-ready-title"><span class="sheet-badge">${icon('clock')}</span><h2 class="sheet-title" id="trial-ready-title"></h2><p class="sheet-note">Niente aiuti, annullamenti o pause.</p><p id="trial-ready-status" class="sheet-small" role="status"></p><button id="begin-trial" class="play-button">${icon('play')}Inizia</button><button id="cancel-trial" class="text-button">Non ora</button></dialog>
+
 `;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -147,10 +146,14 @@ let generation = 0;
 let completionTimer: ReturnType<typeof setTimeout> | undefined;
 let savedGame = createSaveState();
 let completed = new Set<string>();
-let trial: TimeTrial | null = null;
-let onlineRun: { id: string; owner: string } | null = null;
-let trialInterval: ReturnType<typeof setInterval> | undefined;
-let trialStarting = false;
+let session: PlaySession | null = null;
+let sessionInterval: ReturnType<typeof setInterval> | undefined;
+let lastSessionSave = 0;
+let changingSession = false;
+let windowFocused = true;
+let onlineEpoch = 0;
+let onlineFresh = false;
+let onlineStart: Promise<{ id: string; owner: string } | null> | null = null;
 let ready = false;
 let appActive = true;
 let rendering = false;
@@ -168,7 +171,7 @@ function persistGame() {
   const key = LEVELS[levelIndex].key;
   const removedIds = history.map(piece => piece.id);
   const solutionIds = removedIds.length === LEVELS[levelIndex].pieces.length ? [...removedIds] : savedGame.levels[key]?.solutionIds;
-  savedGame.levels[key] = { removedIds, ...(solutionIds ? { solutionIds } : {}) };
+  savedGame.levels[key] = { ...savedGame.levels[key], removedIds, ...(solutionIds ? { solutionIds } : {}), ...(session ? { attempt: session.snapshot(performance.now()) } : {}) };
   return saveGame(savedGame).then(() => { $('save-warning').hidden = true; }).catch(() => {
     $('save-warning').hidden = false;
   });
@@ -310,7 +313,8 @@ function closeDialogs() {
   document.querySelectorAll<HTMLDialogElement>('dialog[open]').forEach(dialog => dialog.close());
 }
 function showScreen(next: Screen) {
-  if (screen === 'game' && next !== 'game') interruptTrial('Hai lasciato il livello.');
+  changingSession = true;
+  if (screen === 'game' && next !== 'game') pauseSession();
   if (ready && screen === 'game') { settleAnimations(); void persistGame(); }
   clearTimeout(completionTimer);
   closeDialogs();
@@ -358,7 +362,6 @@ function showScreen(next: Screen) {
   ground.position.y = next === 'home' ? -2.1 : groundHeight();
   controls.minDistance = next === 'collection' ? 1.2 : 4;
   $('level-brief').hidden = next !== 'game' || levelIndex === TUTORIAL_INDEX;
-  $('trial-status').hidden = next !== 'game' || !trial;
   cameraTween = null;
   gestures.reset(); orbitStart = null;
   updateProgress();
@@ -375,6 +378,8 @@ function showScreen(next: Screen) {
     requestAnimationFrame(() => current?.scrollIntoView({ block: 'center', behavior: reducedMotion || previous === 'journey' ? 'auto' : 'smooth' }));
     $('tab-journey').focus({ preventScroll: true });
   }
+  changingSession = false;
+  syncSession();
   wakeRenderer();
 }
 const SCREEN_IDS = { home: 'home-screen', journey: 'journey-screen', collection: 'collection-screen', rankings: 'rankings-screen' } as const;
@@ -417,8 +422,8 @@ function setHomeCamera() {
   camera.lookAt(0, 0, 0);
 }
 function enterGame(index = levelIndex, restart = false) {
-  showScreen('game');
   loadLevel(index, restart);
+  showScreen('game');
   renderer.domElement.focus({ preventScroll: true });
 }
 function continueGame() {
@@ -429,8 +434,7 @@ function continueGame() {
 }
 function openPause() {
   if (screen !== 'game') return;
-  interruptTrial('La prova è stata messa in pausa.');
-  $('pause-trial').hidden = levelIndex === TUTORIAL_INDEX || !completed.has(LEVELS[levelIndex].key);
+  pauseSession();
   settleAnimations(); clearTimeout(completionTimer); void persistGame();
   controls.enabled = false;
   $<HTMLDialogElement>('pause-dialog').showModal();
@@ -438,6 +442,7 @@ function openPause() {
 }
 function openSettings() {
   $<HTMLDialogElement>('settings-dialog').showModal();
+  syncSession();
   controls.enabled = false;
   renderer.setAnimationLoop(null); rendering = false;
 }
@@ -446,7 +451,7 @@ function createReward() {
   disposeGroup(reward);
   reward.rotation.set(0, 0, 0);
   reward.scale.setScalar(1);
-  if (!remaining.length) reward.add(createRelic(LEVELS[levelIndex].reward));
+  if (!remaining.length) reward.add(createRelic(LEVELS[levelIndex].reward, relicRarity(LEVELS[levelIndex], savedGame)));
   else {
     // An open early puzzle still keeps the actual collectible a surprise.
     const seal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.33, 1), new THREE.MeshStandardMaterial({ color: 0x95a48b, roughness: 0.72, metalness: 0.08 }));
@@ -459,7 +464,7 @@ function createReward() {
 function previewRelic(level: Level, discovered: boolean) {
   disposeGroup(gallery);
   gallery.rotation.set(0, 0, 0);
-  if (discovered) gallery.add(createRelic(level.reward));
+  if (discovered) gallery.add(createRelic(level.reward, relicRarity(level, savedGame)));
   else {
     const mystery = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshStandardMaterial({ color: 0x98a793, roughness: 0.8, metalness: 0.08 }));
     gallery.add(mystery);
@@ -471,7 +476,7 @@ function previewRelic(level: Level, discovered: boolean) {
     const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.57, 0.62, 0.1, 40), new THREE.MeshStandardMaterial({ color: [0x8eae91, 0x94afb8, 0xb7a0ba, 0x9bb897, 0xc19b7c, 0xa8b8c9, 0x89b5bf, 0x7dafb2, 0xb4bd9b, 0xc4b181][level.chapter - 1] ?? 0xb7a0ba, roughness: 0.8 }));
     pedestal.position.y = -0.56; gallery.add(pedestal);
     chapter.forEach((index, order) => {
-      const miniature = createRelic(LEVELS[index].reward);
+      const miniature = createRelic(LEVELS[index].reward, relicRarity(LEVELS[index], savedGame));
       miniature.scale.setScalar(0.22);
       const angle = order * Math.PI * 2 / chapter.length;
       miniature.position.set(Math.cos(angle) * 0.48, -0.43, Math.sin(angle) * 0.48);
@@ -493,8 +498,7 @@ function tutorialStep() {
 function tutorialTarget() { return remaining.find(piece => piece.id === tutorialStep().targetId); }
 function updateTutorial() {
   const active = screen === 'game' && levelIndex === TUTORIAL_INDEX;
-  $('hint').setAttribute('aria-label', active ? 'Mostra il cubo da provare' : 'Suggerimento: trova una freccia libera');
-  $('hint').title = active ? 'Mostra il cubo da provare' : 'Trova una freccia libera';
+  if (active) { $('hint').setAttribute('aria-label', 'Mostra il cubo da provare'); $('hint').title = 'Mostra il cubo da provare'; }
   $('tutorial-card').hidden = !active;
   tutorialOutline.visible = false;
   if (!active) return;
@@ -528,7 +532,7 @@ function updateProgress() {
   $('progress-label').setAttribute('aria-label', `${removed} di ${level.pieces.length} pezzi liberati`);
   $('progress-fill').style.transform = `scaleX(${removed / level.pieces.length})`;
   $<HTMLButtonElement>('undo').disabled = history.length === 0;
-  $<HTMLButtonElement>('hint').disabled = remaining.length === 0;
+  updateHint();
   $('level-brief').hidden = screen !== 'game' || levelIndex === TUTORIAL_INDEX;
   $('level-brief').setAttribute('aria-label', `Livello ${levelIndex + 1}, ${CHAPTERS.find(chapter => chapter.id === level.chapter)?.name ?? ''}`);
   $('level-number').textContent = String(levelIndex + 1);
@@ -543,6 +547,7 @@ function updateProgress() {
   document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach(button => {
     const i = Number(button.dataset.level);
     button.setAttribute('aria-pressed', String(i === levelIndex));
+    button.dataset.tone = completed.has(LEVELS[i].key) ? relicRarity(LEVELS[i], savedGame) : 'unknown';
     const key = LEVELS[i].key;
     button.classList.toggle('is-done', completed.has(key));
     const check = button.querySelector('.tab-check')!;
@@ -554,7 +559,11 @@ function updateProgress() {
   document.querySelectorAll<SVGPathElement>('.path-top [data-segment]').forEach(path => {
     path.classList.toggle('is-done', completed.has(LEVELS[Number(path.dataset.segment)].key));
   });
-  document.querySelectorAll<HTMLElement>('[data-slot]').forEach(slot => slot.classList.toggle('is-found', completed.has(LEVELS[Number(slot.dataset.slot)].key)));
+  document.querySelectorAll<HTMLElement>('[data-slot]').forEach(slot => {
+    const level = LEVELS[Number(slot.dataset.slot)];
+    slot.classList.toggle('is-found', completed.has(level.key));
+    slot.dataset.tone = completed.has(level.key) ? relicRarity(level, savedGame) : 'unknown';
+  });
   updateHomeActions();
   updateTutorial();
 }
@@ -716,10 +725,10 @@ function resetView(animate = true) {
   if (animate) moveCamera(to); else { camera.position.copy(to); controls.update(); }
 }
 function loadLevel(index: number, restart = false) {
+  changingSession = true;
+  pauseSession();
   if (ready) { settleAnimations(); void persistGame(); }
-  interruptTrial('È iniziata una nuova partita.');
-  trial = null; onlineRun = null; trialStarting = false;
-  $('trial-status').hidden = true;
+  session = null; onlineFresh = false;
   generation++; clearTimeout(completionTimer); animations = []; cameraTween = null;
   $<HTMLDialogElement>('win-dialog').close();
   selected = null; clearBeam(); disposeGroup(puzzleGroup); meshes.clear();
@@ -731,6 +740,12 @@ function loadLevel(index: number, restart = false) {
   history = removedIds.map(id => LEVELS[index].pieces.find(piece => piece.id === id)!);
   const removed = new Set(removedIds);
   remaining = LEVELS[index].pieces.filter(piece => !removed.has(piece.id));
+  if (index !== TUTORIAL_INDEX && remaining.length) {
+    const previous = savedGame.levels[LEVELS[index].key];
+    session = new PlaySession(restart ? undefined : previous?.attempt, restart || !!previous?.attempt || removedIds.length === 0);
+    onlineFresh = restart || (removedIds.length === 0 && (!previous?.attempt || (previous.attempt.elapsedMs === 0 && previous.attempt.hintsUsed === 0 && previous.attempt.eligible && !previous.attempt.finished)));
+    if (restart) savedGame.levels[LEVELS[index].key] = { ...previous, removedIds: [], attempt: session.snapshot(performance.now()) };
+  }
   chapterEnvironment.setLevel(LEVELS[index]);
   updateAtmosphere();
   remaining.forEach(createPiece); createReward();
@@ -747,120 +762,121 @@ function loadLevel(index: number, restart = false) {
   if (screen === 'game' && index !== TUTORIAL_INDEX && !completed.has(LEVELS[index].key) && !history.length) showToast(LEVELS[index].focus);
   else hideToast();
   announce(`${index === TUTORIAL_INDEX ? 'Introduzione' : `Livello ${index + 1}`}: ${LEVELS[index].name}. ${remaining.length} pezzi rimasti.${history.length ? ' Partita ripristinata.' : ''}`);
+  changingSession = false;
+  syncSession();
   void persistGame();
 }
 function win() {
   playSound('win');
   const level = LEVELS[levelIndex];
+  const tutorial = levelIndex === TUTORIAL_INDEX;
   const firstDiscovery = !completed.has(level.key);
+  const previousQuality = relicRarity(level, savedGame);
+  const elapsed = session?.finish(performance.now()) ?? null;
+  const previousTime = savedGame.bestTimes[level.key];
+  const quality = tutorial ? 'common' : bestRarity(firstDiscovery ? 'common' : previousQuality, elapsed ? rarityForTime(level.key, elapsed) : 'common');
+  if (!tutorial) {
+    savedGame.levels[level.key] = { ...savedGame.levels[level.key], removedIds: history.map(piece => piece.id), rarity: quality };
+    if (elapsed) savedGame.bestTimes[level.key] = Math.min(previousTime ?? Infinity, elapsed);
+  }
   completed.add(level.key);
-  selectPiece(null); updateProgress();
-  createReward();
+  savedGame.completed = [...completed];
+  clearInterval(sessionInterval);
+  selectPiece(null); updateProgress(); createReward();
   if (!reducedMotion) animations.push({ start: performance.now(), duration: 800, update: t => reward.scale.setScalar(0.4 + smooth(t) * 0.6) });
   const currentGeneration = generation;
   moveCamera(camera.position.clone().normalize().multiplyScalar(4));
   $('win-title').textContent = level.artifact;
-  const tutorial = levelIndex === TUTORIAL_INDEX;
-  $('win-rarity').textContent = tutorial ? 'PRIMI PASSI' : RARITIES[level.rarity].toUpperCase();
-  $('win-pips').innerHTML = tutorial ? '' : pips(RARITY_PIPS[level.rarity]);
-  $('win-dialog').dataset.tone = tutorial ? 'common' : level.rarity;
+  $('win-rarity').textContent = tutorial ? 'PRIMI PASSI' : RARITIES[quality].toUpperCase();
+  $('win-pips').innerHTML = tutorial ? '' : pips(RARITY_PIPS[quality]);
+  $('win-dialog').dataset.tone = quality;
   const discoveries = CAMPAIGN_INDEXES.filter(index => completed.has(LEVELS[index].key)).length;
   $('win-count').innerHTML = `${icon('gem')}${firstDiscovery && !tutorial ? '+1 · ' : ''}${discoveries}/${CAMPAIGN_INDEXES.length}`;
   $('win-count').hidden = tutorial;
   const chapterComplete = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === level.chapter).every(index => completed.has(LEVELS[index].key));
-  $('win-description').textContent = !tutorial && chapterComplete ? `${CHAPTERS.find(chapter => chapter.id === level.chapter)!.name}: collezione completa!` : '';
-  $('win-description').hidden = !$('win-description').textContent;
+  $('win-description').textContent = tutorial ? '' : `${!firstDiscovery && quality !== previousQuality ? 'Qualità migliorata! ' : ''}${level.ending}${chapterComplete ? ' Collezione completa!' : ''}`;
+  $('win-description').hidden = tutorial;
   $('next-level').innerHTML = `${tutorial ? 'Comincia' : levelIndex === CAMPAIGN_INDEXES.at(-1) ? 'Reliquie' : 'Avanti'} ${icon('next')}`;
-  $('win-collection').hidden = $('win-trial').hidden = tutorial;
-  $('win-record').hidden = true;
+  $('win-collection').hidden = $('win-replay').hidden = tutorial;
+  $('win-record').hidden = !elapsed;
+  if (elapsed) $('win-record').innerHTML = `${icon('clock')}Tempo · ${formatTime(elapsed)}${previousTime && elapsed >= previousTime ? ` · migliore ${formatTime(previousTime)}` : previousTime ? ' · nuovo migliore' : ''}`;
   $('win-online').hidden = true;
-  const elapsed = trial?.finish(performance.now());
-  clearInterval(trialInterval);
-  if (elapsed) {
-    const previous = savedGame.bestTimes[level.key];
-    savedGame.bestTimes[level.key] = Math.min(previous ?? Infinity, elapsed);
-    $('win-record').innerHTML = `${icon('clock')}${!previous || elapsed < previous ? 'Nuovo record · ' : ''}${formatTime(elapsed)}`;
-    $('win-record').hidden = false;
-    $('trial-clock').textContent = formatTime(elapsed);
-    $('trial-label').textContent = 'PROVA COMPLETATA';
-  }
   const proof = history.map(piece => piece.id);
-  if (levelIndex !== TUTORIAL_INDEX && accountState().user) {
-    const owner = accountState().user!.id;
-    const run = onlineRun;
+  const pending = onlineStart;
+  onlineStart = null;
+  const owner = accountState().user?.id;
+  if (!tutorial && owner) {
     $('win-online').hidden = false;
-    $('win-online').textContent = elapsed && run ? 'Verifica del tempo online…' : 'Registrazione della scoperta…';
-    void (elapsed && run && run.owner === owner ? finishTimedRun(run.id, proof).then(result => `Tempo online verificato · ${formatTime(result.elapsedMs)} · record ${formatTime(result.bestMs)}`) : submitDiscovery(level.key, proof).then(() => 'Scoperta registrata nella classifica degli esploratori.'))
-      .then(message => { if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = message; })
-      .catch(error => { if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = error instanceof Error ? error.message : 'Risultato salvato sul dispositivo. Classifica non disponibile.'; });
+    $('win-online').textContent = 'Salvataggio della scoperta…';
+    void (async () => {
+      const run = elapsed && pending ? await pending : null;
+      if (owner !== accountState().user?.id) return;
+      let message: string;
+      if (run?.owner === owner) {
+        try {
+          const result = await finishTimedRun(run.id, proof);
+          message = `Tempo online · ${formatTime(result.elapsedMs)}`;
+        } catch {
+          await submitDiscovery(level.key, proof);
+          message = 'Scoperta registrata. Il tempo personale resta salvato.';
+        }
+      } else {
+        await submitDiscovery(level.key, proof);
+        message = 'Scoperta registrata nella classifica degli esploratori.';
+      }
+      if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = message;
+    })().catch(error => { if (generation === currentGeneration && accountState().user?.id === owner) $('win-online').textContent = error instanceof Error ? error.message : 'Risultato salvato sul dispositivo. Classifica non disponibile.'; });
   }
-  onlineRun = null;
   completionTimer = setTimeout(() => { if (currentGeneration === generation && !remaining.length) $<HTMLDialogElement>('win-dialog').showModal(); }, 1050);
 }
 
-function interruptTrial(reason: string) {
-  if (!trial?.running) return;
-  trial.invalidate(reason);
-  onlineRun = null;
-  clearInterval(trialInterval);
-  $('trial-label').textContent = 'PROVA INTERROTTA · GIOCO LIBERO';
-  $('trial-clock').textContent = '';
-  $('trial-status').classList.add('trial-interrupted');
-  announce(`${reason} Puoi continuare liberamente; questo tentativo non registra un tempo.`);
+/** Local active time continues across visits; only uninterrupted runs enter online times. */
+function pauseSession() {
+  session?.pause(performance.now());
+  clearInterval(sessionInterval);
+  onlineStart = null;
+  onlineEpoch++;
 }
-
-function prepareTimeTrial(index = levelIndex) {
-  if (index === TUTORIAL_INDEX || !completed.has(LEVELS[index].key)) return;
-  enterGame(index, true);
-  $('trial-ready-title').textContent = LEVELS[index].name;
-  $('trial-ready-status').textContent = accountState().user ? 'Prova online: resta connesso.' : 'Vale per il tuo record. Accedi per la classifica.';
-  $<HTMLButtonElement>('begin-trial').disabled = false;
-  $<HTMLDialogElement>('trial-ready-dialog').showModal();
-  controls.enabled = false;
+function syncSession() {
+  if (changingSession || !ready) return;
+  const playing = screen === 'game' && appActive && windowFocused && !document.hidden && !document.querySelector('dialog[open]') && $('graphics-warning').hidden && remaining.length > 0;
+  if (!playing) { pauseSession(); return; }
+  session?.resume(performance.now());
+  if (onlineFresh) { onlineFresh = false; beginOnlineSession(); }
+  clearInterval(sessionInterval);
+  lastSessionSave = performance.now();
+  if (session?.running) sessionInterval = setInterval(() => {
+    updateHint();
+    if (performance.now() - lastSessionSave >= 5_000) { lastSessionSave = performance.now(); void persistGame(); }
+  }, 250);
+  updateHint();
 }
-
-async function beginTimeTrial() {
-  if (trialStarting) return;
-  trialStarting = true;
-  const currentGeneration = generation;
+function updateHint() {
+  if (levelIndex === TUTORIAL_INDEX) { $('hint-wait').hidden = true; return; }
+  const wait = session?.hintRemaining(performance.now()) ?? 0;
+  const seconds = Math.ceil(wait / 1000);
+  const button = $<HTMLButtonElement>('hint');
+  button.disabled = remaining.length === 0 || seconds > 0;
+  button.setAttribute('aria-label', seconds ? `Suggerimento disponibile fra ${seconds} secondi` : 'Suggerimento: trova una freccia libera');
+  button.title = seconds ? `Prossimo aiuto fra ${seconds} secondi` : 'Trova una freccia libera';
+  $('hint-wait').hidden = !seconds;
+  $('hint-wait').textContent = seconds ? String(seconds) : '';
+}
+function beginOnlineSession() {
   const owner = accountState().user?.id;
-  $<HTMLButtonElement>('begin-trial').disabled = true;
-  let run: { id: string; owner: string } | null = null;
-  let notice = '';
-  if (owner) {
-    $('trial-ready-status').textContent = 'Preparazione della prova online…';
-    try { const result = await startTimedRun(LEVELS[levelIndex].key); run = { ...result, owner }; }
-    catch (error) { notice = `${error instanceof Error ? error.message : 'Classifica non disponibile.'} Prova valida solo per il record personale.`; }
-  }
-  if (generation !== currentGeneration || owner !== accountState().user?.id || !$<HTMLDialogElement>('trial-ready-dialog').open || document.hidden) {
-    trialStarting = false;
-    if (generation === currentGeneration) {
-      $<HTMLButtonElement>('begin-trial').disabled = false;
-      $('trial-ready-status').textContent = 'La partenza è stata interrotta. Premi Inizia quando sei pronto.';
-    }
-    return;
-  }
-  trialStarting = false;
-  onlineRun = run;
-  trial = new TimeTrial(); trial.start(performance.now());
-  $('trial-label').textContent = run ? 'PROVA ONLINE' : 'RECORD PERSONALE';
-  $('trial-clock').textContent = '00:00.000';
-  $('trial-status').hidden = false;
-  $('trial-status').classList.remove('trial-interrupted');
-  if (notice) showToast(notice);
-  $<HTMLDialogElement>('trial-ready-dialog').close();
-  renderer.domElement.focus({ preventScroll: true });
-  clearInterval(trialInterval);
-  trialInterval = setInterval(() => { if (trial?.running) $('trial-clock').textContent = formatTime(trial.elapsed(performance.now())); }, 67);
-  wakeRenderer();
+  if (!owner || !session?.running) return;
+  const currentGeneration = generation;
+  const epoch = onlineEpoch;
+  onlineStart = startTimedRun(LEVELS[levelIndex].key).then(run =>
+    generation === currentGeneration && epoch === onlineEpoch && owner === accountState().user?.id ? { ...run, owner } : null
+  ).catch(() => null);
 }
 
 const metagame = initMetagame({
   getSave: () => savedGame,
   screen: showScreen,
   preview: previewRelic,
-  play: index => enterGame(index),
-  trial: prepareTimeTrial,
+  play: (index, restart = false) => enterGame(index, restart),
   account: () => $('home-account').click(),
 });
 
@@ -897,7 +913,8 @@ window.addEventListener('pointerup', event => {
 }, { capture: true });
 window.addEventListener('pointercancel', event => { gestures.cancel(event.pointerId); orbitStart = null; });
 renderer.domElement.addEventListener('lostpointercapture', event => gestures.cancel(event.pointerId));
-window.addEventListener('blur', () => { gestures.reset(); orbitStart = null; interruptTrial('La finestra ha perso il fuoco.'); });
+window.addEventListener('blur', () => { windowFocused = false; gestures.reset(); orbitStart = null; pauseSession(); void persistGame(); });
+window.addEventListener('focus', () => { windowFocused = true; syncSession(); });
 renderer.domElement.addEventListener('keydown', event => {
   if ((screen !== 'game' && screen !== 'collection') || document.querySelector('dialog[open]')) return;
   if (event.key === 'Enter' && screen === 'game') { event.preventDefault(); extract(); }
@@ -930,7 +947,6 @@ $('resume-game').addEventListener('click', () => {
 });
 $('pause-journey').addEventListener('click', () => showScreen('journey'));
 $('pause-collection').addEventListener('click', () => metagame.openCollection(levelIndex));
-$('pause-trial').addEventListener('click', () => prepareTimeTrial());
 $('pause-home').addEventListener('click', () => showScreen('home'));
 $('home-settings').addEventListener('click', openSettings);
 $('pause-settings').addEventListener('click', openSettings);
@@ -940,32 +956,39 @@ $('sound-toggle').addEventListener('click', () => {
   $('sound-toggle').setAttribute('aria-pressed', String(toggleSound()));
   if (soundEnabled()) playSound('select');
 });
-document.querySelectorAll<HTMLDialogElement>('dialog').forEach(dialog => dialog.addEventListener('close', () => {
+// Capture also covers account dialogs installed after startup.
+document.addEventListener('close', event => {
+  if (!(event.target instanceof HTMLDialogElement)) return;
   controls.enabled = (screen === 'game' || screen === 'collection') && !document.querySelector('dialog[open]');
+  syncSession();
   wakeRenderer();
-}));
+}, true);
+new MutationObserver(records => {
+  if (records.some(record => record.target instanceof HTMLDialogElement)) syncSession();
+}).observe(document.body, { attributes: true, attributeFilter: ['open'], subtree: true });
 $('hint').addEventListener('click', () => {
-  interruptTrial('Hai usato un suggerimento.');
   if (levelIndex === TUTORIAL_INDEX) { cyclePiece(); return; }
+  if (screen !== 'game' || !remaining.length || !session?.running || session.hintRemaining(performance.now()) > 0) return;
   const available = getAvailable(remaining);
   // Prefer a free piece nearest the current viewing angle.
   available.sort((a, b) => vec(b.position).normalize().dot(camera.position.clone().normalize()) - vec(a.position).normalize().dot(camera.position.clone().normalize()));
-  if (available[0]) focusPiece(available[0]);
+  if (available[0] && session.useHint(performance.now())) { focusPiece(available[0]); updateHint(); void persistGame(); }
 });
 $('view').addEventListener('click', () => resetView());
 $('restart').addEventListener('click', () => { closeDialogs(); loadLevel(levelIndex, true); renderer.domElement.focus({ preventScroll: true }); });
 $('undo').addEventListener('click', () => {
   if (!history.length) return;
-  interruptTrial('Hai annullato una mossa.');
+  const snapshot = session?.snapshot(performance.now());
+  if (snapshot?.finished) { session = new PlaySession({ ...snapshot, finished: false, eligible: false }); onlineStart = null; onlineEpoch++; }
   clearTimeout(completionTimer);
   const piece = history.pop()!;
   finishPieceAnimation(piece.id);
   remaining.push(piece); createPiece(piece);
-  selectPiece(null); updateProgress(); resetView(); announce('Ultima estrazione annullata.');
+  selectPiece(null); syncSession(); updateProgress(); resetView(); announce('Ultima estrazione annullata.');
   void persistGame();
 });
 document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach(button => button.addEventListener('click', () => enterGame(Number(button.dataset.level))));
-$('help').addEventListener('click', () => $<HTMLDialogElement>('help-dialog').showModal());
+$('help').addEventListener('click', () => { $<HTMLDialogElement>('help-dialog').showModal(); syncSession(); });
 document.querySelector('#help-dialog .dialog-close')!.addEventListener('click', () => $<HTMLDialogElement>('help-dialog').close());
 $('start').addEventListener('click', () => $<HTMLDialogElement>('help-dialog').close());
 $('skip-tutorial').addEventListener('click', () => loadLevel(0));
@@ -975,9 +998,7 @@ $('next-level').addEventListener('click', () => {
   else loadLevel(levelIndex === TUTORIAL_INDEX ? 0 : levelIndex + 1);
 });
 $('win-collection').addEventListener('click', () => metagame.openCollection(levelIndex));
-$('win-trial').addEventListener('click', () => prepareTimeTrial());
-$('begin-trial').addEventListener('click', () => void beginTimeTrial());
-$('cancel-trial').addEventListener('click', () => $<HTMLDialogElement>('trial-ready-dialog').close());
+$('win-replay').addEventListener('click', () => enterGame(levelIndex, true));
 function resize() {
   const bounds = renderer.domElement.parentElement!.getBoundingClientRect();
   if (!bounds.width || !bounds.height) return;
@@ -1062,7 +1083,7 @@ function settleAnimations() {
 }
 
 function suspendGame() {
-  interruptTrial('La partita è passata in background.');
+  pauseSession();
   settleAnimations();
   void persistGame();
   renderer.setAnimationLoop(null);
@@ -1072,15 +1093,15 @@ function suspendGame() {
 
 controls.addEventListener('change', wakeRenderer);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) suspendGame(); else wakeRenderer();
+  if (document.hidden) suspendGame(); else { syncSession(); wakeRenderer(); }
 });
 window.addEventListener('pagehide', suspendGame);
-window.addEventListener('pageshow', wakeRenderer);
+window.addEventListener('pageshow', () => { syncSession(); wakeRenderer(); });
 renderer.domElement.addEventListener('webglcontextlost', event => {
   event.preventDefault(); suspendGame();
   $('graphics-warning').hidden = false;
 });
-renderer.domElement.addEventListener('webglcontextrestored', () => { $('graphics-warning').hidden = true; selectPiece(null); wakeRenderer(); });
+renderer.domElement.addEventListener('webglcontextrestored', () => { $('graphics-warning').hidden = true; selectPiece(null); syncSession(); wakeRenderer(); });
 
 async function startGame() {
   savedGame = await loadSave();
@@ -1089,15 +1110,17 @@ async function startGame() {
   ready = true; $('app').inert = false;
   createHomeSculpture(); showScreen('home'); initPwa();
   if (!reducedMotion) animations.push({ start: performance.now(), duration: 900, update: t => homeSculpture.scale.setScalar(0.7 + smooth(t) * 0.3) });
-  initAccountUi(async () => { interruptTrial('È cambiata la sessione account.'); settleAnimations(); await persistGame(); });
+  initAccountUi(async () => { pauseSession(); settleAnimations(); await persistGame(); });
   onAccountSaveChange(save => {
     const key = LEVELS[levelIndex].key;
     const board = history.map(piece => piece.id).join();
     if (screen === 'game' && save.activeLevel === key && (save.levels[key]?.removedIds ?? []).join() === board) {
       // Same board on screen: take the new progress quietly and keep playing.
+      pauseSession(); onlineFresh = false;
       savedGame = save;
       completed = new Set(save.completed);
-      updateProgress();
+      session = levelIndex !== TUTORIAL_INDEX && remaining.length ? new PlaySession(save.levels[key]?.attempt, !!save.levels[key]?.attempt || history.length === 0) : null;
+      syncSession(); updateProgress();
       return;
     }
     // A replacement belongs to the new account: never persist the previous board.
@@ -1114,10 +1137,10 @@ async function startGame() {
   if (Capacitor.isNativePlatform()) {
     await App.addListener('appStateChange', ({ isActive }) => {
       appActive = isActive;
-      if (isActive) wakeRenderer(); else suspendGame();
+      if (isActive) { syncSession(); wakeRenderer(); } else suspendGame();
     });
     await App.addListener('pause', () => { appActive = false; suspendGame(); });
-    await App.addListener('resume', () => { appActive = true; wakeRenderer(); });
+    await App.addListener('resume', () => { appActive = true; syncSession(); wakeRenderer(); });
     await App.addListener('backButton', async () => {
       const dialog = [...document.querySelectorAll<HTMLDialogElement>('dialog[open]')].at(-1);
       if (dialog) { dialog.close(); return; }

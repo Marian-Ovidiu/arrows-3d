@@ -1,11 +1,21 @@
 import { LEVELS, TUTORIAL_INDEX, getExit } from './puzzle.ts';
+import type { Rarity } from './puzzle.ts';
+import { parseAttemptState } from './time-trial.ts';
+import type { AttemptState } from './time-trial.ts';
+
+export interface LevelProgress {
+  removedIds: string[];
+  solutionIds?: string[];
+  attempt?: AttemptState;
+  rarity?: Rarity;
+}
 
 /** Stable catalog keys make progress independent of the menu order. */
 export interface SaveState {
   version: 2;
   activeLevel: string;
   completed: string[];
-  levels: Record<string, { removedIds: string[]; solutionIds?: string[] }>;
+  levels: Record<string, LevelProgress>;
   bestTimes: Record<string, number>;
   tutorial: { rotated: boolean; blockedSeen: boolean };
 }
@@ -76,6 +86,20 @@ export function parseSaveState(raw: string | null): SaveState {
           unsolved = unsolved.filter((candidate) => candidate.id !== id);
         }
         if (!unsolved.length) history.solutionIds = proof;
+      }
+      if (!legacy) {
+        const attempt = parseAttemptState(saved.attempt);
+        if (attempt) {
+          // A truncated illegal history cannot still yield a fast valid record.
+          if (removedIds.length !== saved.removedIds.length) attempt.eligible = false;
+          if (!remaining.length) attempt.finished = true;
+          history.attempt = attempt;
+        } else if ('attempt' in saved) {
+          // Keep malformed attempts explicitly ineligible instead of silently
+          // restarting their clock at zero on the next visit.
+          history.attempt = { elapsedMs: 0, hintsUsed: 0, hintWaitMs: 0, eligible: false, finished: !remaining.length };
+        }
+        if (saved.rarity === 'common' || saved.rarity === 'uncommon' || saved.rarity === 'rare' || saved.rarity === 'epic') history.rarity = saved.rarity;
       }
       state.levels[key] = history;
       if (history.solutionIds && !state.completed.includes(key)) state.completed.push(key);
