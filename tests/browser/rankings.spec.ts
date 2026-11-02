@@ -30,15 +30,15 @@ test('online rankings submit durable proofs, render safe names and use the serve
   await page.locator('#home-account').click();
   await expect(page.locator('#account-status')).toContainText('sincronizzati');
   await page.getByRole('button', { name: 'Chiudi account', exact: true }).click();
-  await page.locator('#open-rankings').click();
+  await page.locator('#tab-rankings').click();
   await expect(page.locator('#ranking-list li')).toHaveCount(1);
   await expect(page.locator('#ranking-list strong')).toHaveText('<img src=x onerror=alert(1)> · tu');
   await expect(page.locator('#ranking-list img')).toHaveCount(0);
   expect(discoveries.at(-1)).toEqual({ p_level_key: level.key, p_removed_ids: proof });
   await page.locator('[data-ranking="time"]').click();
   await expect(page.locator('#ranking-list li')).toContainText('00:12.345');
-  await page.locator('#rankings-back').click();
-  await page.locator('#open-collection').click();
+  await page.locator('#tab-collection').click();
+  await page.locator('[data-relic="0"]').click();
   await page.locator('#relic-trial').click();
   await page.locator('#begin-trial').click();
   await expect(page.locator('#trial-label')).toHaveText('PROVA ONLINE');

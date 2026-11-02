@@ -105,7 +105,7 @@ test('first level completes, keeps collection and can be replayed', async ({ pag
   await expectProgress(page, FIRST_TOTAL - 1, FIRST_TOTAL);
   await removeOne(page, FIRST_TOTAL);
   await expect(page.locator('#win-dialog')).toBeVisible();
-  await page.getByRole('button', { name: 'La prossima scoperta' }).click();
+  await page.getByRole('button', { name: 'Avanti' }).click();
   await expect(page.locator('[data-level="1"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -150,10 +150,10 @@ test('home, journey and pause keep local progress ready to continue', async ({ p
   await expect(page.locator('#play-game')).toHaveText('Gioca');
   await expect(page.locator('#pause-game')).toBeHidden();
   await expectTouchTargets(page);
-  await page.locator('#open-journey').click();
+  await page.locator('#tab-journey').click();
   await expect(page.locator('#journey-screen')).toBeVisible();
   await expectTouchTargets(page);
-  await page.locator('#back-home').click();
+  await page.locator('#tab-home').click();
   await expect(page.locator('#home-screen')).toBeVisible();
   await chooseLevel(page, 0);
   await removeOne(page, 1);
@@ -167,7 +167,7 @@ test('home, journey and pause keep local progress ready to continue', async ({ p
   await page.locator('#pause-journey').click();
   await expect(page.locator('#journey-screen')).toBeVisible();
   await expect(page.locator('[data-level="0"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('#back-home').click();
+  await page.locator('#tab-home').click();
   await expect(page.locator('#play-game')).toHaveText('Continua');
   await continueGame(page);
   await expectProgress(page, 1, FIRST_TOTAL);

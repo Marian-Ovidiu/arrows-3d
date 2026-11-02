@@ -1,9 +1,10 @@
 import './style.css';
-import '@fontsource/dm-sans/latin-400.css';
-import '@fontsource/dm-sans/latin-500.css';
-import '@fontsource/dm-sans/latin-600.css';
-import '@fontsource/instrument-serif/latin-400.css';
-import '@fontsource/instrument-serif/latin-400-italic.css';
+import '@fontsource/fredoka/latin-500.css';
+import '@fontsource/fredoka/latin-600.css';
+import '@fontsource/fredoka/latin-700.css';
+import '@fontsource/nunito/latin-700.css';
+import '@fontsource/nunito/latin-800.css';
+import '@fontsource/nunito/latin-900.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { loadSave, saveGame } from './persistence';
@@ -23,61 +24,116 @@ import { initMetagame, RARITIES } from './metagame-ui';
 import { TimeTrial, formatTime } from './time-trial';
 import { submitDiscovery, startTimedRun, finishTimedRun } from './leaderboard';
 import { ChapterEnvironment } from './chapter-environment';
+import { icon, relicIcon, chapterIcon, pips, RARITY_PIPS } from './ui-icons';
 
-const icons = {
-  pause: '<path d="M8 5v14M16 5v14"/>',
-  back: '<path d="m14 6-6 6 6 6"/>',
-  settings: '<path d="M4 7h16M4 17h16M9 4v6M16 14v6"/>',
-  seed: '<path d="M12 21V10M12 15C3 15 3 8 3 5c7 0 9 4 9 10ZM12 11c0-6 4-9 9-9 0 5-2 9-9 9Z"/>',
-  planet: '<circle cx="12" cy="12" r="6"/><ellipse cx="12" cy="12" rx="11" ry="3.5" transform="rotate(-35 12 12)"/>',
-  star: '<path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/>',
-  arrow: '<path d="M5 19 19 5M5 5h14v14"/>',
-  reset: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
-  view: '<path d="m12 3 9 5v8l-9 5-9-5V8l9-5ZM3 8l9 5 9-5M12 13v8"/>',
-  hint: '<path d="M9 18h6M10 21h4M8 14a6 6 0 1 1 8 0c-1 1-1 2-1 2H9s0-1-1-2ZM12 1v1M3 5l1 1M21 5l-1 1"/>',
-  close: '<path d="m6 6 12 12M6 18 18 6"/>',
-  next: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
-  undo: '<path d="m9 5-6 6 6 6M3 11h11a6 6 0 0 1 6 6v3"/>',
-};
-const icon = (name: keyof typeof icons) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
+const NODE_GAP = 104;
+/** A winding trail: nodes sway left and right, joined by soft curves. */
+function mapTrack(indexes: readonly number[], chapter: number) {
+  const points = indexes.map((index, order) => ({ index, x: 50 + Math.sin(order * 1.3 + chapter * 2) * 24, y: 62 + order * NODE_GAP }));
+  const height = points.at(-1)!.y + 62;
+  const curve = (from: typeof points[number], to: typeof points[number]) => `M${from.x} ${from.y}C${from.x} ${from.y + NODE_GAP / 2} ${to.x} ${to.y - NODE_GAP / 2} ${to.x} ${to.y}`;
+  const segments = points.slice(1).map((point, order) => `<path data-segment="${points[order].index}" d="${curve(points[order], point)}"/>`).join('');
+  return `<div class="map-track" style="height:${height}px"><svg class="map-path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><g class="path-base">${segments}</g><g class="path-top">${segments}</g></svg>${points.map(({ index, x, y }, order) => `<button class="journey-node${x > 55 ? ' label-left' : ''}" data-level="${index}" data-tone="${LEVELS[index].rarity}" aria-pressed="false" style="left:${x.toFixed(1)}%;top:${y}px;--i:${order}"><span class="node-art">${index === TUTORIAL_INDEX ? icon('sparkle') : `<span class="node-number">${index + 1}</span>`}<span class="tab-check" aria-label=""></span></span><span class="node-copy"><strong>${LEVELS[index].name}</strong><span class="node-progress"></span></span></button>`).join('')}</div>`;
+}
+function journeyMap() {
+  const intro = `<section class="map-chapter map-intro" data-chapter="0">${mapTrack([TUTORIAL_INDEX], 0)}</section>`;
+  return intro + CHAPTERS.map(chapter => {
+    const indexes = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === chapter.id);
+    return `<section class="map-chapter" data-chapter="${chapter.id}"><div class="journey-chapter chapter-banner"><span class="banner-icon">${chapterIcon(chapter.id)}</span><div class="banner-copy"><h3>${chapter.name}</h3><div class="relic-slots">${indexes.map(index => `<span class="relic-slot" data-slot="${index}" data-tone="${LEVELS[index].rarity}">${relicIcon(LEVELS[index].reward)}</span>`).join('')}</div></div></div>${mapTrack(indexes, chapter.id)}</section>`;
+  }).join('');
+}
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <section class="home-screen" id="home-screen" aria-label="Svela, menu principale">
-    <button id="home-settings" class="icon-button home-settings" aria-label="Impostazioni">${icon('settings')}</button>
-    <div class="home-title"><span class="home-kicker">UN PICCOLO MONDO DA LIBERARE</span><h1>svela<span>✧</span></h1><p>La meraviglia è dentro.</p></div>
-    <div class="home-actions"><button id="play-game" class="play-button">Gioca ${icon('next')}</button><button id="open-journey" class="menu-link">Le tue scoperte</button><div class="home-explore"><button id="open-collection" class="menu-link">Le reliquie ${icon('star')}</button><button id="open-rankings" class="menu-link">Classifiche ${icon('planet')}</button></div><button id="install-game" class="install-button" hidden>Installa Svela ${icon('arrow')}</button></div>
-    <div class="home-orbit" aria-hidden="true"></div>
+  <section class="screen home-screen is-active" id="home-screen" aria-label="Svela, menu principale">
+    <h1 class="home-logo rise">svela<span class="logo-sparkle">${icon('sparkle')}</span></h1>
+    <div class="home-actions rise" style="--i:3">
+      <div class="chapter-strip" id="chapter-strip"></div>
+      <button id="play-game" class="play-button">${icon('play')}Gioca</button>
+      <button id="install-game" class="install-button" hidden>${icon('download')}Installa</button>
+    </div>
   </section>
   <main class="game">
     <section class="play-area" aria-label="Puzzle tridimensionale">
       <div class="scene" id="scene"></div>
-      <div class="game-hud" id="game-hud" hidden><button id="pause-game" class="icon-button pause-button" aria-label="Pausa">${icon('pause')}</button><span class="progress-badge" id="progress-label"></span></div>
-      <div class="level-brief" id="level-brief" hidden><span class="eyebrow" id="level-number"></span><strong id="level-title"></strong><p id="level-focus"></p></div>
-      <div class="trial-status" id="trial-status" hidden><span id="trial-label" role="status">PROVA A TEMPO</span><span id="trial-clock" aria-label="Tempo della prova">00:00.000</span></div>
+      <div class="game-hud" id="game-hud">
+        <button id="pause-game" class="round-button" aria-label="Pausa">${icon('pause')}</button>
+        <div class="level-chip" id="level-brief" hidden><span class="level-chip-icon" id="level-chapter-icon"></span><span id="level-number"></span><span class="sr-only" id="level-title"></span></div>
+        <span class="progress-badge" id="progress-label"></span>
+        <span class="hud-meter" aria-hidden="true"><span id="progress-fill"></span></span>
+      </div>
+      <p class="level-toast" id="level-focus" role="status" hidden></p>
+      <div class="trial-status" id="trial-status" hidden>${icon('clock')}<span id="trial-label" role="status">PROVA A TEMPO</span><span id="trial-clock" aria-label="Tempo della prova">00:00.000</span></div>
       <div class="tutorial-card" id="tutorial-card" hidden>
-        <div class="tutorial-heading"><span class="eyebrow" id="tutorial-step"></span><button id="skip-tutorial">Salta ${icon('next')}</button></div>
+        <div class="tutorial-heading"><span class="tutorial-steps" id="tutorial-step"></span><button id="skip-tutorial">Salta ${icon('next')}</button></div>
         <div role="status" aria-live="polite"><strong id="tutorial-title"></strong><p id="tutorial-description"></p></div>
       </div>
-      <p class="graphics-warning" id="graphics-warning" role="status" hidden>La grafica è in pausa. La partita è salvata: attendi il ripristino.</p>
-      <div class="tool-rail" id="game-tools" hidden>
-        <button id="hint" class="icon-button" title="Trova una freccia libera" aria-label="Suggerimento: trova una freccia libera">${icon('hint')}</button>
-        <button id="view" class="icon-button" title="Ripristina la vista" aria-label="Ripristina la vista">${icon('view')}</button>
-        <button id="undo" class="icon-button" title="Annulla l’ultima estrazione" aria-label="Annulla l’ultima estrazione" disabled>${icon('undo')}</button>
+      <p class="graphics-warning" id="graphics-warning" role="status" hidden>La grafica è in pausa. La partita è salvata.</p>
+      <div class="tool-rail" id="game-tools">
+        <button id="undo" class="round-button" title="Annulla" aria-label="Annulla l’ultima estrazione" disabled>${icon('undo')}</button>
+        <button id="hint" class="round-button hint-button" title="Suggerimento" aria-label="Suggerimento: trova una freccia libera">${icon('hint')}</button>
+        <button id="view" class="round-button" title="Ripristina la vista" aria-label="Ripristina la vista">${icon('view')}</button>
       </div>
     </section>
   </main>
-  <section class="journey-screen" id="journey-screen" aria-label="Le tue scoperte" hidden>
-    <button id="back-home" class="icon-button screen-back" aria-label="Torna al menu">${icon('back')}</button>
-    <div class="journey-title"><span class="eyebrow">IL TUO PICCOLO VIAGGIO</span><h2>Le scoperte</h2></div>
-    <p class="journey-summary" id="journey-summary"></p>
-    <nav class="journey-path" aria-label="Livelli">${JOURNEY_INDEXES.map((i, order) => `${i !== TUTORIAL_INDEX && (i === 0 || LEVELS[i].chapter !== LEVELS[i - 1].chapter) ? `<div class="journey-chapter"><span class="eyebrow">CAPITOLO ${String(LEVELS[i].chapter).padStart(2, '0')}</span><h3>${CHAPTERS.find(chapter => chapter.id === LEVELS[i].chapter)!.name}</h3><p>${CHAPTERS.find(chapter => chapter.id === LEVELS[i].chapter)!.description}</p></div>` : ''}<button class="journey-node" data-level="${i}" aria-pressed="false"><span class="node-art node-art-${LEVELS[i].chapter}">${icon(i === TUTORIAL_INDEX ? 'arrow' : LEVELS[i].chapter === 1 ? 'seed' : LEVELS[i].chapter === 2 ? 'planet' : 'star')}<span class="node-number">${i === TUTORIAL_INDEX ? '✧' : String(i + 1).padStart(2, '0')}</span><span class="tab-check" aria-label="completato"></span></span><span class="node-copy"><small>${i === TUTORIAL_INDEX ? 'INIZIA QUI' : `SCOPERTA ${String(i + 1).padStart(2, '0')}`}</small><strong>${LEVELS[i].name}</strong><span class="node-progress"></span></span></button>`).join('')}</nav>
+  <section class="screen journey-screen" id="journey-screen" aria-label="Mappa">
+    <header class="screen-header rise"><h2>Mappa</h2><span class="header-counter" id="journey-summary"></span></header>
+    <nav class="journey-path" aria-label="Livelli">${journeyMap()}</nav>
   </section>
-  <dialog id="pause-dialog" class="menu-dialog"><span class="eyebrow">PRENDITI IL TUO TEMPO</span><h2>Un momento.</h2><button id="resume-game" class="play-button">Riprendi ${icon('next')}</button><button id="pause-journey" class="menu-option">Le tue scoperte</button><button id="pause-collection" class="menu-option">La stanza delle reliquie</button><button id="pause-trial" class="menu-option" hidden>Prova a tempo</button><button id="restart" class="menu-option">Ricomincia il livello</button><button id="pause-settings" class="menu-option">Impostazioni</button><button id="pause-home" class="menu-option muted">Menu principale</button></dialog>
-  <dialog id="settings-dialog" class="menu-dialog"><button id="close-settings" class="dialog-close icon-button" aria-label="Chiudi impostazioni">${icon('close')}</button><span class="eyebrow">COME PIACE A TE</span><h2>Il tuo spazio.</h2><button id="sound-toggle" class="setting-toggle" aria-pressed="true"><span>Suoni</span><span class="toggle-track" aria-hidden="true"></span></button><button id="help" class="menu-option">Come si gioca</button><p class="local-save-note">I progressi sono salvati su questo dispositivo.</p></dialog>
+  <header class="top-bar" id="top-bar">
+    <div class="top-bar-start" id="top-bar-start"></div>
+    <div class="top-bar-end">
+      <button id="top-relics" class="counter-pill" aria-label="Reliquie">${icon('gem')}<span id="relic-counter">0</span><small>/${CAMPAIGN_INDEXES.length}</small></button>
+      <button id="home-settings" class="round-button" aria-label="Impostazioni">${icon('settings')}</button>
+    </div>
+  </header>
+  <nav class="tab-bar" id="tab-bar" aria-label="Navigazione principale">
+    <button id="tab-home" data-tab="home" aria-current="page">${icon('play')}<span>Gioca</span></button>
+    <button id="tab-journey" data-tab="journey">${icon('map')}<span>Mappa</span></button>
+    <button id="tab-collection" data-tab="collection">${icon('gem')}<span>Reliquie</span></button>
+    <button id="tab-rankings" data-tab="rankings">${icon('trophy')}<span>Classifica</span></button>
+  </nav>
+  <dialog id="pause-dialog" class="sheet" aria-labelledby="pause-title">
+    <span class="sheet-handle" aria-hidden="true"></span>
+    <h2 class="sheet-title" id="pause-title">Pausa</h2>
+    <button id="resume-game" class="play-button">${icon('play')}Riprendi</button>
+    <div class="tile-grid">
+      <button id="restart" class="tile">${icon('restart')}<span>Da capo</span></button>
+      <button id="pause-journey" class="tile">${icon('map')}<span>Mappa</span></button>
+      <button id="pause-collection" class="tile">${icon('gem')}<span>Reliquie</span></button>
+      <button id="pause-trial" class="tile" hidden>${icon('clock')}<span>Sfida</span></button>
+      <button id="pause-settings" class="tile">${icon('settings')}<span>Opzioni</span></button>
+      <button id="pause-home" class="tile">${icon('home')}<span>Home</span></button>
+    </div>
+  </dialog>
+  <dialog id="settings-dialog" class="sheet" aria-labelledby="settings-title">
+    <button id="close-settings" class="dialog-close round-button" aria-label="Chiudi impostazioni">${icon('close')}</button>
+    <h2 class="sheet-title" id="settings-title">Opzioni</h2>
+    <button id="sound-toggle" class="setting-row" aria-pressed="true">${icon('sound')}<span>Suoni</span><span class="toggle-track" aria-hidden="true"></span></button>
+    <button id="help" class="setting-row">${icon('help')}<span>Come si gioca</span>${icon('forward')}</button>
+    <p class="local-save-note">I progressi sono salvati su questo dispositivo.</p>
+  </dialog>
   <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
   <p id="save-warning" class="save-warning" role="status" hidden>Salvataggio non disponibile. Tieni aperto il gioco per conservare questa partita.</p>
-  <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Chiudi istruzioni">${icon('close')}</button><span class="eyebrow">BASTA CAMBIARE PROSPETTIVA</span><h2>Fai spazio alla scoperta.</h2><ol><li><strong>Ruota la figura.</strong> Trascina con un dito o con il mouse. Puoi guardarla anche da sotto.</li><li><strong>Accendi un percorso.</strong> Tocca un cubo: la luce segue la freccia. Se incontra un ostacolo, si ferma.</li><li><strong>Libera un pezzo.</strong> Tocca di nuovo lo stesso cubo. Esce solo se tutto il percorso è libero.</li><li><strong>Scopri il centro.</strong> Libera tutti i cubi e porta alla luce il piccolo oggetto nascosto.</li></ol><p class="help-note">Un solo fascio alla volta. Puoi ruotare la figura anche con una freccia selezionata. La lampadina ti aiuta quando serve.</p><details><summary>Comandi da tastiera</summary><p>Metti a fuoco la scena: frecce direzionali per ruotare, + e − per lo zoom, N per selezionare un pezzo, Invio per estrarlo, Esc per deselezionare.</p></details><button id="start" class="primary-button">Ho capito, esploriamo ${icon('next')}</button></dialog>
-  <dialog id="win-dialog"><span class="win-symbol">✧</span><span class="eyebrow" id="win-rarity">HAI FATTO SPAZIO ALLA MERAVIGLIA</span><h2 id="win-title"></h2><p id="win-description"></p><p id="win-record" class="win-record" hidden></p><p id="win-online" role="status" hidden></p><div class="win-actions"><button id="next-level" class="primary-button">La prossima scoperta ${icon('next')}</button><button id="win-collection" class="secondary-button">Nella stanza delle reliquie</button><button id="win-trial" class="text-button">Prova a tempo</button><button id="admire" class="text-button">Resta a guardare</button></div></dialog>
-  <dialog id="trial-ready-dialog" class="menu-dialog"><span class="eyebrow">UNA PICCOLA SFIDA CON TE STESSO</span><h2 id="trial-ready-title"></h2><p>Il tempo parte con <strong>Inizia</strong>. Libera tutti i pezzi senza suggerimenti, annullamenti o pause.</p><p class="help-note">Puoi interrompere quando vuoi e continuare la scoperta liberamente. I record personali funzionano anche offline; i tempi online vengono misurati dal server.</p><p id="trial-ready-status" role="status"></p><button id="begin-trial" class="primary-button">Inizia</button><button id="cancel-trial" class="text-button">Gioca con calma</button></dialog>
+  <dialog id="help-dialog" class="sheet" aria-labelledby="help-title"><button class="dialog-close round-button" aria-label="Chiudi istruzioni">${icon('close')}</button><h2 class="sheet-title" id="help-title">Come si gioca</h2><ol class="help-steps"><li>${icon('restart')}<strong>Ruota</strong><span>Trascina la figura in ogni direzione.</span></li><li>${icon('hint')}<strong>Tocca un cubo</strong><span>La luce segue la sua freccia.</span></li><li>${icon('next')}<strong>Tocca ancora</strong><span>Esce solo se la strada è libera.</span></li><li>${icon('gem')}<strong>Svela</strong><span>Libera tutto e trova la reliquia.</span></li></ol><details><summary>Tastiera</summary><p>Frecce per ruotare, + e − per lo zoom, N per selezionare, Invio per estrarre, Esc per deselezionare.</p></details><button id="start" class="play-button">Ho capito</button></dialog>
+  <dialog id="win-dialog" class="win-dialog" aria-labelledby="win-title">
+    <div class="win-rays" aria-hidden="true"></div>
+    <p class="win-heading" aria-hidden="true">Svelato!</p>
+    <div class="win-card">
+      <span class="win-rarity-line"><span id="win-pips"></span><span id="win-rarity"></span></span>
+      <h2 id="win-title"></h2>
+      <p id="win-description" hidden></p>
+      <div class="win-chips"><span class="chip" id="win-count"></span><span id="win-record" class="chip" hidden></span></div>
+      <p id="win-online" role="status" hidden></p>
+    </div>
+    <div class="win-actions">
+      <button id="next-level" class="play-button">Avanti ${icon('next')}</button>
+      <div class="win-secondary">
+        <button id="win-trial" class="round-button" aria-label="Sfida a tempo">${icon('clock')}</button>
+        <button id="win-collection" class="round-button" aria-label="Vedi la reliquia">${icon('gem')}</button>
+        <button id="admire" class="round-button" aria-label="Resta a guardare">${icon('eye')}</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="trial-ready-dialog" class="sheet" aria-labelledby="trial-ready-title"><span class="sheet-badge">${icon('clock')}</span><h2 class="sheet-title" id="trial-ready-title"></h2><p class="sheet-note">Niente aiuti, annullamenti o pause.</p><p id="trial-ready-status" class="sheet-small" role="status"></p><button id="begin-trial" class="play-button">${icon('play')}Inizia</button><button id="cancel-trial" class="text-button">Non ora</button></dialog>
 `;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -101,7 +157,8 @@ let rendering = false;
 let idleFrames = 0;
 let lastFrameTime = 0;
 $('app').inert = true;
-let screen: 'home' | 'journey' | 'game' | 'collection' | 'rankings' = 'home';
+type Screen = 'home' | 'journey' | 'game' | 'collection' | 'rankings';
+let screen = 'home' as Screen;
 $('app').dataset.screen = screen;
 
 function persistGame() {
@@ -159,7 +216,7 @@ scene.add(sunlight);
 const fillLight = new THREE.DirectionalLight(0xdce9f1, 1.8);
 fillLight.position.set(4, 1, -3);
 scene.add(fillLight);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ opacity: 0.115 }));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ opacity: 0.22 }));
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -2.6;
 ground.receiveShadow = true;
@@ -252,23 +309,44 @@ function createHomeSculpture() {
 function closeDialogs() {
   document.querySelectorAll<HTMLDialogElement>('dialog[open]').forEach(dialog => dialog.close());
 }
-function showScreen(next: typeof screen) {
+function showScreen(next: Screen) {
   if (screen === 'game' && next !== 'game') interruptTrial('Hai lasciato il livello.');
   if (ready && screen === 'game') { settleAnimations(); void persistGame(); }
   clearTimeout(completionTimer);
   closeDialogs();
+  const previous = screen;
   screen = next;
   $('app').dataset.screen = next;
   updateAtmosphere();
   $('app').classList.toggle('is-tutorial', next === 'game' && levelIndex === TUTORIAL_INDEX);
-  $('home-screen').hidden = next !== 'home';
-  $('journey-screen').hidden = next !== 'journey';
-  $('collection-screen').hidden = next !== 'collection';
-  $('rankings-screen').hidden = next !== 'rankings';
+  // Screens cross-fade: the leaving one stays painted until its transition ends.
+  for (const [name, id] of Object.entries(SCREEN_IDS)) {
+    const section = $(id), active = name === next;
+    section.classList.toggle('is-active', active);
+    section.inert = !active;
+  }
+  const tabIndex = Object.keys(SCREEN_IDS).indexOf(next);
+  if (tabIndex >= 0) $('tab-bar').style.setProperty('--tab', String(tabIndex));
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach(tab => {
+    if (tab.dataset.tab === next) tab.setAttribute('aria-current', 'page'); else tab.removeAttribute('aria-current');
+  });
+  if (next !== 'collection') metagame.closeDetail();
+  if (next !== 'game') hideToast();
   const canvasParent = next === 'collection' ? $('relic-stage') : $('scene');
-  if (renderer.domElement.parentElement !== canvasParent) canvasParent.append(renderer.domElement);
-  $('game-hud').hidden = next !== 'game';
-  $('game-tools').hidden = next !== 'game';
+  clearTimeout(canvasMove);
+  if (!reducedMotion && previous !== next && COVERED.has(next) && !COVERED.has(previous)) {
+    // The incoming screen fades over a frozen last frame; the canvas moves once it is covered.
+    freezeUntil = performance.now() + COVER_MS;
+    canvasMove = setTimeout(() => {
+      if (screen !== next) return;
+      if (renderer.domElement.parentElement !== canvasParent) { canvasParent.append(renderer.domElement); revealCanvas(); }
+      resize(); wakeRenderer();
+    }, COVER_MS);
+  } else {
+    freezeUntil = 0;
+    if (renderer.domElement.parentElement !== canvasParent) canvasParent.append(renderer.domElement);
+    if (previous !== next) revealCanvas();
+  }
   controls.enabled = next === 'game' || next === 'collection';
   renderer.domElement.tabIndex = next === 'game' || next === 'collection' ? 0 : -1;
   renderer.domElement.setAttribute('aria-hidden', String(next !== 'game' && next !== 'collection'));
@@ -286,16 +364,56 @@ function showScreen(next: typeof screen) {
   updateProgress();
   if (next === 'home') {
     const begun = history.length > 0 || completed.size > 0 || savedGame.tutorial.rotated || Object.values(savedGame.levels).some(level => level.removedIds.length);
-    $('play-game').innerHTML = `${begun ? 'Continua' : 'Gioca'} ${icon('next')}`;
+    $('play-game').innerHTML = `${icon('play')}${begun ? 'Continua' : 'Gioca'}`;
+    if (previous !== 'home' && !reducedMotion) animations.push({ start: performance.now(), duration: 700, update: t => homeSculpture.scale.setScalar(0.82 + smooth(t) * 0.18) });
   }
   resize();
   if (next === 'home') setHomeCamera();
-  if (next === 'journey') $('back-home').focus({ preventScroll: true });
+  if (next === 'journey') {
+    // Bring the current stop into view, gliding unless motion is reduced.
+    const current = document.querySelector<HTMLElement>('.journey-node[aria-pressed=true]');
+    requestAnimationFrame(() => current?.scrollIntoView({ block: 'center', behavior: reducedMotion || previous === 'journey' ? 'auto' : 'smooth' }));
+    $('tab-journey').focus({ preventScroll: true });
+  }
   wakeRenderer();
+}
+const SCREEN_IDS = { home: 'home-screen', journey: 'journey-screen', collection: 'collection-screen', rankings: 'rankings-screen' } as const;
+const COVERED = new Set<Screen>(['journey', 'collection', 'rankings']);
+const COVER_MS = 260;
+const EASE_OUT = 'cubic-bezier(.22,1,.36,1)';
+let freezeUntil = 0;
+let canvasMove: ReturnType<typeof setTimeout> | undefined;
+function revealCanvas() {
+  if (!reducedMotion) renderer.domElement.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: EASE_OUT });
+}
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+/** A short, self-dismissing tip. It fades instead of popping in and out. */
+function showToast(text: string) {
+  const toast = $('level-focus');
+  clearTimeout(toastTimer);
+  toast.textContent = text;
+  toast.classList.remove('is-leaving');
+  toast.hidden = false;
+  toastTimer = setTimeout(() => {
+    toast.classList.add('is-leaving');
+    toastTimer = setTimeout(() => { toast.hidden = true; }, reducedMotion ? 0 : 450);
+  }, 3600);
+}
+function hideToast() {
+  clearTimeout(toastTimer);
+  $('level-focus').hidden = true;
+}
+/** The level the Gioca button opens: the board in progress, else the next undiscovered one. */
+function nextPlayable(): number | undefined {
+  if (remaining.length) return levelIndex;
+  const journey = JOURNEY_INDEXES;
+  const current = journey.indexOf(levelIndex);
+  const candidates = [...journey.slice(current + 1), ...journey.slice(0, current)];
+  return candidates.find(index => !completed.has(LEVELS[index].key));
 }
 function setHomeCamera() {
   controls.target.set(0, 0, 0);
-  camera.position.copy(new THREE.Vector3(1.05, .8, 1.3).normalize().multiplyScalar(9.4 * Math.max(1, 1 / camera.aspect)));
+  camera.position.copy(new THREE.Vector3(1.05, .8, 1.3).normalize().multiplyScalar(10.6 * Math.max(1, 1 / camera.aspect)));
   camera.lookAt(0, 0, 0);
 }
 function enterGame(index = levelIndex, restart = false) {
@@ -305,10 +423,7 @@ function enterGame(index = levelIndex, restart = false) {
 }
 function continueGame() {
   if (remaining.length) { enterGame(); return; }
-  const journey = JOURNEY_INDEXES;
-  const current = journey.indexOf(levelIndex);
-  const candidates = [...journey.slice(current + 1), ...journey.slice(0, current)];
-  const next = candidates.find(index => !completed.has(LEVELS[index].key));
+  const next = nextPlayable();
   if (next === undefined) { metagame.openCollection(levelIndex); return; }
   enterGame(next);
 }
@@ -385,8 +500,11 @@ function updateTutorial() {
   if (!active) return;
   const step = tutorialStep();
   $('tutorial-card').dataset.step = step.id;
-  $('tutorial-step').textContent = `PRIMI PASSI · ${step.number} DI 4`;
-  const skipLabel = step.id === 'done' ? 'Comincia il viaggio' : 'Salta';
+  if ($('tutorial-step').dataset.number !== String(step.number)) {
+    $('tutorial-step').dataset.number = String(step.number);
+    $('tutorial-step').innerHTML = `<span class="sr-only">Primi passi, ${step.number} di 4</span>${[1, 2, 3, 4].map(n => `<i class="${n < step.number ? 'is-done' : n === step.number ? 'is-current' : ''}"></i>`).join('')}`;
+  }
+  const skipLabel = step.id === 'done' ? 'Comincia' : 'Salta';
   if ($('skip-tutorial').textContent?.trim() !== skipLabel) $('skip-tutorial').innerHTML = `${skipLabel} ${icon('next')}`;
   // Avoid repeating live-region announcements during every scene update.
   if ($('tutorial-title').textContent !== step.title) $('tutorial-title').textContent = step.title;
@@ -408,24 +526,53 @@ function updateProgress() {
   const removed = level.pieces.length - remaining.length;
   $('progress-label').textContent = `${removed} / ${level.pieces.length}`;
   $('progress-label').setAttribute('aria-label', `${removed} di ${level.pieces.length} pezzi liberati`);
+  $('progress-fill').style.transform = `scaleX(${removed / level.pieces.length})`;
   $<HTMLButtonElement>('undo').disabled = history.length === 0;
   $<HTMLButtonElement>('hint').disabled = remaining.length === 0;
   $('level-brief').hidden = screen !== 'game' || levelIndex === TUTORIAL_INDEX;
-  $('level-number').textContent = `SCOPERTA ${String(levelIndex + 1).padStart(2, '0')} · ${CHAPTERS.find(chapter => chapter.id === level.chapter)?.name ?? ''}`;
+  $('level-brief').setAttribute('aria-label', `Livello ${levelIndex + 1}, ${CHAPTERS.find(chapter => chapter.id === level.chapter)?.name ?? ''}`);
+  $('level-number').textContent = String(levelIndex + 1);
+  $('level-chapter-icon').innerHTML = chapterIcon(level.chapter);
   $('level-title').textContent = level.name;
-  $('level-focus').textContent = level.focus;
   const discoveryCount = CAMPAIGN_INDEXES.filter(index => completed.has(LEVELS[index].key)).length;
-  $('journey-summary').textContent = `${discoveryCount} / ${CAMPAIGN_INDEXES.length} scoperte · tre piccoli mondi da ritrovare`;
+  const total = CAMPAIGN_INDEXES.length;
+  $('journey-summary').innerHTML = `${icon('gem')}<span>${discoveryCount}</span><small>/${total}</small>`;
+  $('journey-summary').setAttribute('aria-label', `${discoveryCount} scoperte su ${total}`);
+  $('relic-counter').textContent = String(discoveryCount);
+  $('top-relics').setAttribute('aria-label', `Reliquie: ${discoveryCount} su ${total}`);
   document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach(button => {
     const i = Number(button.dataset.level);
     button.setAttribute('aria-pressed', String(i === levelIndex));
     const key = LEVELS[i].key;
-    button.querySelector('.tab-check')!.textContent = completed.has(key) ? '✓' : '';
-    button.querySelector('.tab-check')!.setAttribute('aria-label', completed.has(key) ? 'completato' : '');
+    button.classList.toggle('is-done', completed.has(key));
+    const check = button.querySelector('.tab-check')!;
+    if (completed.has(key) !== !!check.firstChild) check.innerHTML = completed.has(key) ? icon('check') : '';
+    check.setAttribute('aria-label', completed.has(key) ? 'completato' : '');
     const count = i === levelIndex ? history.length : (savedGame.levels[key]?.removedIds.length ?? 0);
-    button.querySelector('.node-progress')!.textContent = completed.has(key) ? `Svelato${savedGame.bestTimes[key] ? ` · ${formatTime(savedGame.bestTimes[key])}` : ''}` : count ? `${count} / ${LEVELS[i].pieces.length}` : i === TUTORIAL_INDEX ? 'Quattro piccoli passi' : `${LEVELS[i].pieces.length} pezzi`;
+    button.querySelector('.node-progress')!.textContent = completed.has(key) ? `Svelato${savedGame.bestTimes[key] ? ` · ${formatTime(savedGame.bestTimes[key])}` : ''}` : count ? `${count} / ${LEVELS[i].pieces.length}` : `${LEVELS[i].pieces.length} pezzi`;
   });
+  document.querySelectorAll<SVGPathElement>('.path-top [data-segment]').forEach(path => {
+    path.classList.toggle('is-done', completed.has(LEVELS[Number(path.dataset.segment)].key));
+  });
+  document.querySelectorAll<HTMLElement>('[data-slot]').forEach(slot => slot.classList.toggle('is-found', completed.has(LEVELS[Number(slot.dataset.slot)].key)));
+  updateHomeActions();
   updateTutorial();
+}
+/** Home shows only what the next tap does: the level badge and its chapter's progress. */
+function updateHomeActions() {
+  const next = nextPlayable();
+  const target = next ?? levelIndex;
+  const button = $('play-game');
+  if (next === undefined || next === TUTORIAL_INDEX) delete button.dataset.badge; else button.dataset.badge = String(next + 1);
+  const chapter = LEVELS[target].chapter || 1;
+  const indexes = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === chapter);
+  const done = indexes.filter(index => completed.has(LEVELS[index].key)).length;
+  const strip = $('chapter-strip');
+  const signature = `${chapter}:${target}:${indexes.map(index => +completed.has(LEVELS[index].key)).join('')}`;
+  if (strip.dataset.signature === signature) return;
+  strip.dataset.signature = signature;
+  strip.setAttribute('aria-label', `${CHAPTERS.find(item => item.id === chapter)!.name}: ${done} di ${indexes.length}`);
+  strip.innerHTML = `${chapterIcon(chapter)}<span class="strip-steps">${indexes.map(index => `<i class="${completed.has(LEVELS[index].key) ? 'is-done' : index === target ? 'is-current' : ''}"></i>`).join('')}</span>`;
 }
 
 function clearBeam() {
@@ -590,6 +737,15 @@ function loadLevel(index: number, restart = false) {
   ground.position.y = groundHeight();
   resize(); resetView(false); selectPiece(null); updateProgress();
   if (!remaining.length) moveCamera(camera.position.clone().normalize().multiplyScalar(4));
+  else if (!reducedMotion && screen === 'game') {
+    // The figure settles in: a slow dolly and a gentle scale, never a cut.
+    const settled = camera.position.clone();
+    camera.position.multiplyScalar(1.22); controls.update();
+    moveCamera(settled);
+    animations.push({ start: performance.now(), duration: 620, update: t => puzzleGroup.scale.setScalar(0.88 + smooth(t) * 0.12), end: () => puzzleGroup.scale.setScalar(1) });
+  }
+  if (screen === 'game' && index !== TUTORIAL_INDEX && !completed.has(LEVELS[index].key) && !history.length) showToast(LEVELS[index].focus);
+  else hideToast();
   announce(`${index === TUTORIAL_INDEX ? 'Introduzione' : `Livello ${index + 1}`}: ${LEVELS[index].name}. ${remaining.length} pezzi rimasti.${history.length ? ' Partita ripristinata.' : ''}`);
   void persistGame();
 }
@@ -604,12 +760,18 @@ function win() {
   const currentGeneration = generation;
   moveCamera(camera.position.clone().normalize().multiplyScalar(4));
   $('win-title').textContent = level.artifact;
-  $('win-rarity').textContent = levelIndex === TUTORIAL_INDEX ? 'IL VIAGGIO PUÒ COMINCIARE' : `${RARITIES[level.rarity].toUpperCase()} · ${firstDiscovery ? 'AGGIUNTO ALLA COLLEZIONE' : 'RITROVATO'}`;
-  $('win-rarity').dataset.rarity = level.rarity;
+  const tutorial = levelIndex === TUTORIAL_INDEX;
+  $('win-rarity').textContent = tutorial ? 'PRIMI PASSI' : RARITIES[level.rarity].toUpperCase();
+  $('win-pips').innerHTML = tutorial ? '' : pips(RARITY_PIPS[level.rarity]);
+  $('win-dialog').dataset.tone = tutorial ? 'common' : level.rarity;
+  const discoveries = CAMPAIGN_INDEXES.filter(index => completed.has(LEVELS[index].key)).length;
+  $('win-count').innerHTML = `${icon('gem')}${firstDiscovery && !tutorial ? '+1 · ' : ''}${discoveries}/${CAMPAIGN_INDEXES.length}`;
+  $('win-count').hidden = tutorial;
   const chapterComplete = CAMPAIGN_INDEXES.filter(index => LEVELS[index].chapter === level.chapter).every(index => completed.has(LEVELS[index].key));
-  $('win-description').textContent = `${level.ending}${levelIndex !== TUTORIAL_INDEX && chapterComplete ? ` La collezione ${CHAPTERS.find(chapter => chapter.id === level.chapter)!.name} è completa.` : ''}`;
-  $('next-level').innerHTML = `${levelIndex === TUTORIAL_INDEX ? 'Comincia il viaggio' : levelIndex === CAMPAIGN_INDEXES.at(-1) ? 'Guarda le tue reliquie' : 'La prossima scoperta'} ${icon('next')}`;
-  $('win-collection').hidden = $('win-trial').hidden = levelIndex === TUTORIAL_INDEX;
+  $('win-description').textContent = !tutorial && chapterComplete ? `${CHAPTERS.find(chapter => chapter.id === level.chapter)!.name}: collezione completa!` : '';
+  $('win-description').hidden = !$('win-description').textContent;
+  $('next-level').innerHTML = `${tutorial ? 'Comincia' : levelIndex === CAMPAIGN_INDEXES.at(-1) ? 'Reliquie' : 'Avanti'} ${icon('next')}`;
+  $('win-collection').hidden = $('win-trial').hidden = tutorial;
   $('win-record').hidden = true;
   $('win-online').hidden = true;
   const elapsed = trial?.finish(performance.now());
@@ -617,7 +779,7 @@ function win() {
   if (elapsed) {
     const previous = savedGame.bestTimes[level.key];
     savedGame.bestTimes[level.key] = Math.min(previous ?? Infinity, elapsed);
-    $('win-record').textContent = `${!previous || elapsed < previous ? 'Nuovo record personale' : 'Prova completata'} · ${formatTime(elapsed)}`;
+    $('win-record').innerHTML = `${icon('clock')}${!previous || elapsed < previous ? 'Nuovo record · ' : ''}${formatTime(elapsed)}`;
     $('win-record').hidden = false;
     $('trial-clock').textContent = formatTime(elapsed);
     $('trial-label').textContent = 'PROVA COMPLETATA';
@@ -651,7 +813,7 @@ function prepareTimeTrial(index = levelIndex) {
   if (index === TUTORIAL_INDEX || !completed.has(LEVELS[index].key)) return;
   enterGame(index, true);
   $('trial-ready-title').textContent = LEVELS[index].name;
-  $('trial-ready-status').textContent = accountState().user ? 'Prova online: resta connesso fino all’ultimo pezzo.' : 'Stai giocando per il tuo record personale. Accedi per partecipare alle classifiche online.';
+  $('trial-ready-status').textContent = accountState().user ? 'Prova online: resta connesso.' : 'Vale per il tuo record. Accedi per la classifica.';
   $<HTMLButtonElement>('begin-trial').disabled = false;
   $<HTMLDialogElement>('trial-ready-dialog').showModal();
   controls.enabled = false;
@@ -685,7 +847,7 @@ async function beginTimeTrial() {
   $('trial-clock').textContent = '00:00.000';
   $('trial-status').hidden = false;
   $('trial-status').classList.remove('trial-interrupted');
-  $('level-focus').textContent = notice || 'Segui le frecce. Il tempo scorre fino all’ultimo pezzo.';
+  if (notice) showToast(notice);
   $<HTMLDialogElement>('trial-ready-dialog').close();
   renderer.domElement.focus({ preventScroll: true });
   clearInterval(trialInterval);
@@ -740,7 +902,7 @@ renderer.domElement.addEventListener('keydown', event => {
   if ((screen !== 'game' && screen !== 'collection') || document.querySelector('dialog[open]')) return;
   if (event.key === 'Enter' && screen === 'game') { event.preventDefault(); extract(); }
   if (event.key.toLowerCase() === 'n' && screen === 'game') { event.preventDefault(); cyclePiece(); }
-  if (event.key === 'Escape') { event.preventDefault(); if (screen === 'collection') showScreen('home'); else if (selected) selectPiece(null); else openPause(); }
+  if (event.key === 'Escape') { event.preventDefault(); if (screen === 'collection') metagame.closeDetail(); else if (selected) selectPiece(null); else openPause(); }
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '-', '='].includes(event.key)) {
     event.preventDefault(); cameraTween = null;
     const spherical = new THREE.Spherical().setFromVector3(camera.position);
@@ -755,10 +917,11 @@ renderer.domElement.addEventListener('keydown', event => {
   }
 });
 $('play-game').addEventListener('click', continueGame);
-$('open-journey').addEventListener('click', () => showScreen('journey'));
-$('open-collection').addEventListener('click', () => metagame.openCollection());
-$('open-rankings').addEventListener('click', () => metagame.openRankings(levelIndex));
-$('back-home').addEventListener('click', () => showScreen('home'));
+$('tab-home').addEventListener('click', () => showScreen('home'));
+$('tab-journey').addEventListener('click', () => showScreen('journey'));
+$('tab-collection').addEventListener('click', () => metagame.openCollection());
+$('tab-rankings').addEventListener('click', () => metagame.openRankings(levelIndex));
+$('top-relics').addEventListener('click', () => metagame.openCollection());
 $('pause-game').addEventListener('click', openPause);
 $('resume-game').addEventListener('click', () => {
   closeDialogs();
@@ -828,7 +991,8 @@ function resize() {
   }
   controls.maxDistance = Math.max(24, defaultDistance() * 1.6);
   if (screen === 'home' && ready) setHomeCamera();
-  renderer.setSize(bounds.width, bounds.height);
+  // Re-assigning the same size would clear the canvas and break a frozen frame.
+  if (renderer.domElement.width !== Math.floor(bounds.width * renderer.getPixelRatio()) || renderer.domElement.height !== Math.floor(bounds.height * renderer.getPixelRatio())) renderer.setSize(bounds.width, bounds.height);
   chapterEnvironment.resize(bounds.width, bounds.height);
   wakeRenderer();
 }
@@ -852,6 +1016,7 @@ function updateAtmosphere() {
 function renderFrame(time: number) {
   const delta = lastFrameTime ? Math.min((time - lastFrameTime) / 1000, 0.05) : 0;
   lastFrameTime = time;
+  if (time < freezeUntil) return;
   if (cameraTween) {
     const t = Math.min(1, (time - cameraTween.start) / 650);
     camera.position.lerpVectors(cameraTween.from, cameraTween.to, smooth(t));
@@ -863,12 +1028,15 @@ function renderFrame(time: number) {
     animation.update(t);
     if (t === 1) animation.end?.(); else animations.push(animation);
   }
-  const modalOpen = !!document.querySelector('dialog[open]');
-  if (screen === 'home' && !reducedMotion && !modalOpen) {
-    homeSculpture.rotation.y += delta * 0.12;
+  // The victory card is see-through: the relic keeps turning behind it.
+  const modalOpen = !!document.querySelector('dialog[open]:not(#win-dialog)');
+  const spinning = !reducedMotion && !modalOpen && (screen === 'home' || (screen === 'game' && !remaining.length) || (screen === 'collection' && metagame.detailOpen()));
+  if (spinning && screen === 'home') {
+    homeSculpture.rotation.y += delta * 0.16;
     homeSculpture.position.y = Math.sin(time * 0.0006) * 0.09;
   }
-  if (screen === 'game' && !remaining.length && !reducedMotion && !modalOpen) reward.rotation.y += delta * 0.24;
+  if (spinning && screen === 'game') reward.rotation.y += delta * 0.32;
+  if (spinning && screen === 'collection') gallery.rotation.y += delta * 0.28;
   controls.update();
   if (environmentEnabled) {
     // Scenery is a background pass: it never covers a cube or enters hit testing.
@@ -880,7 +1048,7 @@ function renderFrame(time: number) {
     renderer.autoClear = true;
   } else renderer.render(scene, camera);
   idleFrames++;
-  if (idleFrames > 12 && animations.length === 0 && !cameraTween && (screen !== 'home' || reducedMotion || modalOpen) && (remaining.length > 0 || screen !== 'game' || reducedMotion || modalOpen)) {
+  if (idleFrames > 12 && animations.length === 0 && !cameraTween && !spinning) {
     renderer.setAnimationLoop(null);
     rendering = false;
   }
@@ -920,6 +1088,7 @@ async function startGame() {
   resize(); loadLevel(Math.max(0, LEVELS.findIndex(level => level.key === savedGame.activeLevel)));
   ready = true; $('app').inert = false;
   createHomeSculpture(); showScreen('home'); initPwa();
+  if (!reducedMotion) animations.push({ start: performance.now(), duration: 900, update: t => homeSculpture.scale.setScalar(0.7 + smooth(t) * 0.3) });
   initAccountUi(async () => { interruptTrial('È cambiata la sessione account.'); settleAnimations(); await persistGame(); });
   onAccountSaveChange(save => {
     // A replacement belongs to the new account: never persist the previous board.
@@ -943,6 +1112,7 @@ async function startGame() {
     await App.addListener('backButton', async () => {
       const dialog = [...document.querySelectorAll<HTMLDialogElement>('dialog[open]')].at(-1);
       if (dialog) { dialog.close(); return; }
+      if (screen === 'collection' && metagame.detailOpen()) { metagame.closeDetail(); return; }
       if (screen === 'journey' || screen === 'collection' || screen === 'rankings') { showScreen('home'); return; }
       if (screen === 'game') { openPause(); return; }
       suspendGame();

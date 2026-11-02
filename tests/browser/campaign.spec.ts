@@ -32,7 +32,7 @@ test('all fifteen discoveries and locked relic shelves fit phone and desktop', a
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.locator('#open-journey').click();
+  await page.locator('#tab-journey').click();
   await expect(page.locator('[data-level]')).toHaveCount(16);
   await expect(page.locator('.journey-chapter')).toHaveCount(3);
   await page.locator('[data-level="14"]').click();
@@ -59,6 +59,8 @@ test('all fifteen discoveries and locked relic shelves fit phone and desktop', a
     }
     await page.screenshot({ path: `test-results/collection-${name}.png` });
   }
+  await page.locator('#relic-close').click();
+  await expect(page.locator('#relic-detail')).toBeHidden();
   await page.locator('[data-rarity="epic"]').click();
   await expect(page.locator('[data-relic]')).toHaveCount(1);
   await page.locator('[data-relic="14"]').click();
@@ -87,11 +89,12 @@ test('discovering a relic unlocks its sculpture and time trial permanently throu
   await page.waitForTimeout(90);
   await solveWithoutAssistance(page);
   await expect(page.locator('#win-dialog')).toBeVisible();
-  await expect(page.locator('#win-record')).toContainText('Nuovo record personale');
+  await expect(page.locator('#win-record')).toContainText('Nuovo record');
   const best = await page.evaluate(key => JSON.parse(localStorage.getItem('svela-save-v1')!).bestTimes[key], LEVELS[0].key);
   expect(best).toBeGreaterThan(0);
   await page.reload();
-  await page.locator('#open-collection').click();
+  await page.locator('#tab-collection').click();
+  await page.locator('[data-relic="0"]').click();
   await expect(page.locator('#relic-record')).toContainText('Record personale');
   await expect(page.locator('#collection-progress')).toContainText('1 / 15');
   await page.locator('#relic-trial').click();
@@ -134,14 +137,14 @@ test('pause, undo and backgrounding end competitive attempts without taking away
 
 test('guest rankings show personal progress and explain online participation without fabricated entries', async ({ page }) => {
   await page.goto('/');
-  await page.locator('#open-rankings').click();
-  await expect(page.locator('#personal-ranking')).toHaveText('Il tuo viaggio · 0 livelli completati');
+  await page.locator('#tab-rankings').click();
+  await expect(page.locator('#personal-ranking .you-value')).toHaveText('0');
   await expect(page.locator('#ranking-list li')).toHaveCount(0);
   await expect(page.locator('#ranking-status')).toContainText(/Accedi|servizio sarà collegato/);
   await page.locator('[data-ranking="time"]').click();
   await expect(page.locator('#ranking-level option')).toHaveCount(CAMPAIGN_INDEXES.length);
   await page.locator('#ranking-level').selectOption(LEVELS[14].key);
-  await expect(page.locator('#personal-ranking')).toContainText('ancora da scrivere');
+  await expect(page.locator('#personal-ranking .you-value')).toHaveText('—');
   await page.screenshot({ path: 'test-results/rankings-phone.png' });
 });
 

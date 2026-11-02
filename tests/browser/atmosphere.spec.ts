@@ -30,7 +30,8 @@ test('chapter scenery supports small screens, full orbit and normal puzzle input
   await expect(page.locator('#app')).toHaveAttribute('data-chapter', '0');
   await page.locator('#pause-game').click(); await page.locator('#pause-home').click();
   await expect(page.locator('#app')).toHaveAttribute('data-chapter', '0');
-  await page.locator('#open-collection').click();
+  await page.locator('#tab-collection').click();
+  await page.locator('[data-relic="0"]').click();
   await expect(page.locator('#relic-stage canvas')).toBeVisible();
   await expect(page.locator('#app')).toHaveAttribute('data-chapter', '0');
   expect(errors).toEqual([]);

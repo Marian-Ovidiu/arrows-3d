@@ -9,7 +9,7 @@ export async function continueGame(page: Page) {
 
 export async function chooseLevel(page: Page, index: number) {
   if (await page.locator('#home-screen').isVisible()) {
-    await page.locator('#open-journey').click();
+    await page.locator('#tab-journey').click();
   } else if (!await page.locator('#journey-screen').isVisible()) {
     await page.locator('#pause-game').click();
     await expect(page.locator('#pause-dialog')).toBeVisible();

@@ -8,12 +8,12 @@ test('title, discovery path and pause present a complete game on phone and deskt
     await page.setViewportSize({width,height});
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await expect(page.locator('#play-game')).toBeInViewport();
-    await expect(page.locator('#open-journey')).toBeInViewport();
+    await expect(page.locator('#tab-journey')).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({path:`test-results/home-${name}.png`});
   }
   await page.setViewportSize({width:390,height:844});
-  await page.locator('#open-journey').click();
+  await page.locator('#tab-journey').click();
   await page.screenshot({path:'test-results/journey-phone.png'});
   await page.locator('[data-level="0"]').click();
   await expect(page.locator('#game-hud')).toBeInViewport();
