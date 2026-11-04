@@ -68,9 +68,14 @@ h1, h2, h3 { margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 700; }
 /* ---------- Stage ---------- */
 #app {
   --g1: #2a6157; --g2: #163a35;
-  position: relative; isolation: isolate; width: 100%; height: 100svh; min-height: 560px; overflow: hidden;
+  position: relative; isolation: isolate; width: 100%; height: 100vh; height: 100dvh; overflow: hidden;
   background: radial-gradient(circle at 50% 44%, var(--g1) 0%, var(--g2) 70%);
   transition: --g1 .8s var(--ease), --g2 .8s var(--ease);
+}
+/* Installed apps have no collapsing browser toolbar. Use the full viewport,
+   including on iOS versions that under-report dynamic units after launch. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  #app { height: 100vh; }
 }
 #app[data-screen=game][data-chapter="1"] { --g1: #317659; --g2: #163e2e; }
 #app[data-screen=game][data-chapter="2"] { --g1: #48529f; --g2: #222960; }
@@ -91,10 +96,14 @@ h1, h2, h3 { margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 700; }
 .map-chapter[data-chapter="10"] { --chapter: #9b784c; --chapter-deep: #6b4c56; --chapter-bg: #3c2d45; }
 .game, .play-area { position: absolute; inset: 0; }
 .game { z-index: 1; }
-.scene { position: absolute; inset: calc(var(--inset-top) + 92px) 0 calc(var(--inset-bottom) + 124px); touch-action: none; }
+.scene, .puzzle-frame { position: absolute; inset: calc(var(--inset-top) + 92px) 0 calc(var(--inset-bottom) + 124px); }
+.scene { touch-action: none; }
+.puzzle-frame { pointer-events: none; visibility: hidden; }
+/* The background fills the screen; only the camera's logical frame has gutters. */
+#app[data-screen=game] .scene { inset: 0; }
 .scene canvas { display: block; touch-action: none; cursor: grab; }
 .scene canvas:active { cursor: grabbing; }
-.is-tutorial .scene { top: calc(var(--inset-top) + 252px); }
+.is-tutorial .puzzle-frame { top: calc(var(--inset-top) + 252px); }
 [data-screen=home] .scene { inset: calc(var(--inset-top) + 150px) 0 calc(var(--inset-bottom) + 244px); pointer-events: none; }
 [data-screen=home]:has(#install-game:not([hidden])) .scene { bottom: calc(var(--inset-bottom) + 300px); }
 [data-screen=home] .scene canvas { cursor: default; }
@@ -622,7 +631,6 @@ dialog[open]::backdrop { opacity: 1; }
 
 /* ---------- Landscape phones ---------- */
 @media (orientation: landscape) and (max-height: 560px) {
-  #app { min-height: 320px; }
   :root { --tabbar-space: calc(var(--inset-bottom) + 84px); }
   .tab-bar { height: 62px; width: min(420px, calc(100% - 24px)); }
   .tab-bar button span { display: none; }
@@ -631,8 +639,8 @@ dialog[open]::backdrop { opacity: 1; }
   .home-actions .play-button { min-height: 64px; font-size: 26px; }
   [data-screen=home] .scene, [data-screen=home]:has(#install-game:not([hidden])) .scene { inset: 12px 2% var(--tabbar-space) 48%; }
   .top-bar { top: 12px; }
-  .scene { inset: 70px calc(var(--inset-right) + 100px) 10px calc(var(--inset-left) + 20px); }
-  .is-tutorial .scene { inset: 40px 380px 10px 0; }
+  .scene, .puzzle-frame { inset: 70px calc(var(--inset-right) + 100px) 10px calc(var(--inset-left) + 20px); }
+  .is-tutorial .puzzle-frame { inset: 40px 380px 10px 0; }
   .game-hud { top: 12px; }
   .hud-meter { top: 52px; }
   .tool-rail { left: auto; right: max(16px, var(--inset-right)); bottom: 12px; flex-direction: column; gap: 10px; }

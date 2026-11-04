@@ -1,7 +1,11 @@
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
 import { AccountRemoteError, AccountSync, type AccountState, type AccountUser, type CloudProgress, type ProgressBackend } from './account-sync.ts';
-import { accountKey, cleanSave, type KeyValueStore } from './account-store.ts';
+import { accountKey, cleanSave, GUEST_KEY, type KeyValueStore } from './account-store.ts';
+import { accountStorage, prepareAccountStorage, flushAccountStorage } from './account-storage.ts';
+import { beginNativeOAuth, clearNativeOAuth, nativeAuthCallback, NATIVE_AUTH_REDIRECT } from './native-oauth.ts';
 import { createSaveState, type SaveState } from './save-state.ts';
 import { playerName } from './player-name.ts';
 import { CATALOG_VERSION } from './puzzle.ts';
@@ -18,12 +22,8 @@ function publicKey(value: string): boolean {
   if (value.startsWith('sb_publishable_')) return true;
   try { return JSON.parse(atob(value.split('.')[1])).role === 'anon'; } catch { return false; }
 }
-const configured = !native && /^https:\/\/[a-z0-9.-]+(?::\d+)?\/?$/i.test(url) && publicKey(key);
-const store: KeyValueStore = {
-  getItem: (name) => globalThis.localStorage?.getItem(name) ?? null,
-  setItem: (name, value) => globalThis.localStorage.setItem(name, value),
-  removeItem: (name) => globalThis.localStorage.removeItem(name),
-};
+const configured = /^https:\/\/[a-z0-9.-]+(?::\d+)?\/?$/i.test(url) && publicKey(key);
+const store = accountStorage;
 let client: SupabaseClient | null = null;
 let initPromise: Promise<void> | null = null;
 let authEvent = 0;
@@ -85,7 +85,7 @@ const backend: ProgressBackend = {
     return { ...progress(data), ok: data.ok };
   },
 };
-const manager = new AccountSync(store, configured ? backend : null, native);
+const manager = new AccountSync(store, configured ? backend : null);
 export const accountState = (): AccountState => manager.state;
 export const subscribeAccount = (listener: (state: AccountState) => void): (() => void) => manager.subscribe(listener);
 export const onAccountSaveChange = (listener: (save: SaveState) => void): (() => void) => manager.onSave(listener);
@@ -109,11 +109,52 @@ function applySession(session: Session | null, expired = false): void {
   latestAuthUserId = session?.user.id ?? null;
   void manager.setUser(session?.user ? userInfo(session.user) : null, expired ? 'Sessione terminata. Accedi nuovamente per i progressi del tuo account.' : '');
 }
+let nativeListenersReady: Promise<void> | undefined;
+async function completeNativeAuth(raw: string): Promise<void> {
+  const callback = nativeAuthCallback(raw, store);
+  const current = client;
+  if (!callback || !current) return;
+  // Consume before awaiting to deduplicate getLaunchUrl/appUrlOpen delivery.
+  clearNativeOAuth(store);
+  const generation = clientGeneration;
+  try {
+    await flushAccountStorage();
+    if ('error' in callback) {
+      manager.message('Accesso Google annullato o non riuscito. Riprova.');
+      return;
+    }
+    const { data, error } = await bounded(current.auth.exchangeCodeForSession(callback.code));
+    if (generation !== clientGeneration || client !== current) return;
+    if (error) throw error;
+    await flushAccountStorage();
+    ++authEvent;
+    applySession(data.session);
+  } catch {
+    if (generation === clientGeneration) manager.message('Accesso Google non riuscito o link scaduto. Riprova.');
+  } finally { await Browser.close().catch(() => {}); }
+}
+async function initializeNativeAuth(): Promise<void> {
+  nativeListenersReady ??= (async () => {
+    await App.addListener('appUrlOpen', ({ url }) => { void completeNativeAuth(url); });
+    await App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) { void client?.auth.startAutoRefresh(); void manager.sync(); }
+      else { void client?.auth.stopAutoRefresh(); void flushAccountStorage().catch(() => {}); }
+    });
+  })();
+  await nativeListenersReady;
+  const launch = await App.getLaunchUrl();
+  if (launch?.url) await completeNativeAuth(launch.url);
+  const state = await App.getState();
+  if (state.isActive) void client?.auth.startAutoRefresh();
+  else void client?.auth.stopAutoRefresh();
+}
 export function initializeAccount(): Promise<void> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
-    if (!configured) return;
     try {
+      await prepareAccountStorage();
+      if (!manager.state.user) manager.externalChange(GUEST_KEY);
+      if (!configured) return;
       const { createClient } = await import('@supabase/supabase-js');
       const generation = ++clientGeneration;
       client = createClient(url, key, {
@@ -135,6 +176,7 @@ export function initializeAccount(): Promise<void> {
         setTimeout(() => { if (generation === clientGeneration && version === authEvent) applySession(session, event === 'SIGNED_OUT' && !!manager.state.user && !activeAction); }, 0);
       });
       unsubscribeAuth = () => authSubscription.subscription.unsubscribe();
+      if (native) await initializeNativeAuth();
       const location = typeof window === 'undefined' ? null : new URL(window.location.href);
       const code = location?.searchParams.get('code');
       if (location?.searchParams.has('error') || location?.hash.includes('error=')) {
@@ -163,7 +205,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('focus', () => { void manager.sync(); });
 }
 function available(): SupabaseClient {
-  if (!client || !configured) throw new Error(native ? 'Accedi dalla versione web per usare il cloud.' : 'Il cloud non è ancora configurato.');
+  if (!client || !configured) throw new Error('Il cloud non è ancora configurato.');
   return client;
 }
 async function action(work: () => Promise<void>): Promise<void> {
@@ -178,6 +220,19 @@ async function action(work: () => Promise<void>): Promise<void> {
 }
 export const signInGoogle = (): Promise<void> => action(async () => {
   const supabase = available();
+  if (native) {
+    beginNativeOAuth(store);
+    try {
+      const { data, error } = await bounded(supabase.auth.signInWithOAuth({ provider: 'google', options: {
+        redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true, queryParams: { prompt: 'select_account' },
+      } }));
+      if (error || !data.url) throw error ?? new Error('OAuth URL missing');
+      // Android may reclaim the WebView while Chrome is open: persist PKCE first.
+      await flushAccountStorage();
+      await Browser.open({ url: data.url, toolbarColor: '#163a35' });
+    } catch (error) { clearNativeOAuth(store); await flushAccountStorage(); throw error; }
+    return;
+  }
   const redirect = new URL(window.location.href);
   for (const name of ['code', 'error', 'error_code', 'error_description', 'sb_flow_id']) redirect.searchParams.delete(name);
   const { error } = await bounded(supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirect.toString(), queryParams: { prompt: 'select_account' } } }));
@@ -193,7 +248,9 @@ export const signOutAccount = (): Promise<void> => action(async () => {
   await bounded(supabase.auth.signOut({ scope: 'local' }), 2_000).catch(() => {});
   if (manager.state.user?.id !== id && manager.state.user !== null) return;
   await discardLocalSession(supabase, id);
+  clearNativeOAuth(store);
   if (!latestAuthUserId || latestAuthUserId === id) await manager.setUser(null);
+  await flushAccountStorage();
 });
 export const deleteAccount = (): Promise<void> => action(async () => {
   const supabase = available();
@@ -220,7 +277,9 @@ export const deleteAccount = (): Promise<void> => action(async () => {
     // Retire the token immediately; do not wait on a logout endpoint after server deletion.
     if (!latestAuthUserId || latestAuthUserId === id) void supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     await discardLocalSession(supabase, id);
+    clearNativeOAuth(store);
     if (manager.state.user?.id === id) await manager.setUser(null, 'Account eliminato.');
+    await flushAccountStorage();
   }
 });
 export const updateDisplayName = (name: string): Promise<void> => action(async () => {

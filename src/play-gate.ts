@@ -4,7 +4,7 @@ export type GateStep = 'install' | 'checking' | 'login' | 'offline' | null;
 export interface GateContext {
   /** False in development and automated runs, where the game opens directly. */
   enforced: boolean;
-  /** The Android app is already an installed app and has no Google sign-in yet. */
+  /** Native apps are already installed, but still require an account. */
   native: boolean;
   /** Running as an installed PWA rather than a browser tab. */
   standalone: boolean;
@@ -20,8 +20,8 @@ export interface GateContext {
 }
 
 export function gateStep(context: GateContext): GateStep {
-  if (!context.enforced || context.native) return null;
-  if (!context.standalone) return 'install';
+  if (!context.enforced) return null;
+  if (!context.native && !context.standalone) return 'install';
   if (!context.configured || context.signedIn) return null;
   if (context.checking) return 'checking';
   if (context.reachable) return 'login';

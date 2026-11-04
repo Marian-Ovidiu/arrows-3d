@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:usesCleartextTraffic="false"
@@ -23,6 +23,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.svela.puzzle" android:host="auth" android:path="/callback" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -36,7 +43,7 @@
         </provider>
     </application>
 
-    <!-- Keep Capacitor's normal WebView permission; all game content is bundled. -->
+    <!-- Bundled game works offline; authentication and cloud sync use HTTPS. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Short haptic cues for blocked moves and discoveries; switchable in Opzioni. -->
     <uses-permission android:name="android.permission.VIBRATE" />

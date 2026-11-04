@@ -66,7 +66,11 @@ Pubblica la cartella `dist` su un hosting statico HTTPS. Le variabili vengono le
 - **Elimina account** richiede di scrivere `ELIMINA`. La conferma del server precede la pulizia della cache e della sessione locale. Un errore non viene presentato come cancellazione riuscita. La cancellazione riguarda account Svela e progressi online, senza eliminare l’account Google personale.
 - La cancellazione dell’utente elimina i dati collegati da chiavi esterne con `ON DELETE CASCADE`. Nuove tabelle o file introdotti in futuro dovranno essere inclusi nella gestione della cancellazione.
 
-L’accesso Google è predisposto per browser/PWA. Nel contenitore Android nativo è disabilitato: servirà un flusso OAuth con browser di sistema e deep link prima di distribuire quella versione.
+L’accesso Google è disponibile anche su Android tramite browser di sistema (Custom Tabs), PKCE e ritorno esatto `com.svela.puzzle://auth/callback`. Questo indirizzo deve comparire in **Authentication → URL Configuration → Redirect URLs**, insieme agli URL web esistenti. Il callback Google nel client OAuth resta quello HTTPS di Supabase: non va sostituito con lo schema Android.
+
+Il redirect Android è stato aggiunto dal proprietario e verificato il 3 novembre 2026 con un flusso OAuth annullato: il ritorno arriva all’app. `node scripts/android-auth-check.mjs` ripete questo controllo senza accedere a un account Google. La prova con Google personale richiede il telefono.
+
+Su Android sessione, verificatore PKCE e salvataggi sono conservati in Preferences private dell’app, con cache WebView e scritture ordinate. I vecchi progressi ospite restano separati dagli account; il backup automatico Android è disabilitato per evitare il ripristino delle credenziali su un altro dispositivo. Il login viene richiesto prima di giocare quando il servizio è configurato e raggiungibile; offline resta disponibile il ripiego previsto dalla PWA.
 
 ## Verifiche
 

@@ -56,6 +56,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <main class="game">
     <section class="play-area" aria-label="Puzzle tridimensionale">
       <div class="scene" id="scene"></div>
+      <div class="puzzle-frame" id="puzzle-frame" aria-hidden="true"></div>
       <div class="game-hud" id="game-hud">
         <button id="pause-game" class="round-button" aria-label="Pausa">${icon('pause')}</button>
         <div class="level-chip" id="level-brief" hidden><span class="level-chip-icon" id="level-chapter-icon"></span><span id="level-number"></span><span class="sr-only" id="level-title"></span></div>
@@ -780,7 +781,7 @@ function loadLevel(index: number, restart = false) {
 }
 /** Raise the relic above the victory card, which covers the lower part of the scene. */
 function liftRewardForCard(distance: number) {
-  const bounds = $('scene').getBoundingClientRect();
+  const bounds = $('puzzle-frame').getBoundingClientRect();
   if (!bounds.height) return;
   const desired = innerHeight * 0.36;
   const pixels = Math.max(0, bounds.top + bounds.height / 2 - desired);
@@ -1112,7 +1113,14 @@ function resize() {
   const bounds = renderer.domElement.parentElement!.getBoundingClientRect();
   if (!bounds.width || !bounds.height) return;
   const previousFit = Math.max(1, 1 / camera.aspect);
-  camera.aspect = bounds.width / Math.max(bounds.height, 1); camera.updateProjectionMatrix();
+  // Draw edge to edge, but keep the puzzle framed between the HUD and tools.
+  // Expanding the frustum also keeps hit testing aligned with the full canvas.
+  const frame = screen === 'game' ? $('puzzle-frame').getBoundingClientRect() : bounds;
+  if (!frame.width || !frame.height) return;
+  camera.aspect = frame.width / frame.height;
+  if (screen === 'game') camera.setViewOffset(frame.width, frame.height, bounds.left - frame.left, bounds.top - frame.top, bounds.width, bounds.height);
+  else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
   const fitRatio = Math.max(1, 1 / camera.aspect) / previousFit;
   if (ready) {
     camera.position.multiplyScalar(fitRatio);
@@ -1123,10 +1131,13 @@ function resize() {
   if (screen === 'home' && ready) setHomeCamera();
   // Re-assigning the same size would clear the canvas and break a frozen frame.
   if (renderer.domElement.width !== Math.floor(bounds.width * renderer.getPixelRatio()) || renderer.domElement.height !== Math.floor(bounds.height * renderer.getPixelRatio())) renderer.setSize(bounds.width, bounds.height);
-  chapterEnvironment.resize(bounds.width, bounds.height);
+  chapterEnvironment.camera.clearViewOffset();
+  chapterEnvironment.resize(frame.width, frame.height);
+  if (screen === 'game') chapterEnvironment.camera.setViewOffset(frame.width, frame.height, bounds.left - frame.left, bounds.top - frame.top, bounds.width, bounds.height);
   wakeRenderer();
 }
 new ResizeObserver(resize).observe($('scene'));
+new ResizeObserver(resize).observe($('puzzle-frame'));
 new ResizeObserver(resize).observe($('relic-stage'));
 
 function wakeRenderer() {

@@ -1,0 +1,35 @@
+{
+  "artifact": "svela-0.2.0-debug.apk",
+  "builtAt": "2026-11-03T12:01:52.782367+00:00",
+  "bytes": 5160173,
+  "sha256": "8fa15abc5cba416958735dac8ffa6d9008058b60b2a7793c52cd57d7d409f51f",
+  "applicationId": "com.svela.puzzle",
+  "versionName": "0.2.0",
+  "versionCode": 2,
+  "minSdk": 24,
+  "targetSdk": 36,
+  "signature": "debug; APK Signature Scheme v2 verified",
+  "sameSigningCertificateAs010": true,
+  "certificateSha256": "0bccebe972b5989edeb7c14926b38085bda370edc4ce2e32653816c2392b026d",
+  "unitTestsPassed": 90,
+  "headlessBrowserTestsPassed": 38,
+  "browserVerification": {
+    "general": 33,
+    "isolatedAccountAndroidAndRankings": 5,
+    "androidCancellationAndRetry": "passed on final native callback code"
+  },
+  "nativeBuild": "assembleDebug successful; Gradle maximum 2 workers",
+  "webFilesMatchedToDist": 36,
+  "nativeOAuthRedirect": "com.svela.puzzle://auth/callback",
+  "liveOAuthCancellationRedirectVerified": true,
+  "deviceRuntimeTested": false,
+  "remoteWebViewServer": false,
+  "externalServices": [
+    "Supabase Auth, progress and rankings"
+  ],
+  "nativePlugins": [
+    "@capacitor/app",
+    "@capacitor/browser",
+    "@capacitor/preferences"
+  ]
+}

@@ -28,8 +28,8 @@ const STEPS: Record<Exclude<InstallHelp, 'prompt' | 'in-app' | 'unsupported'>, S
 
 /**
  * A full-screen gate in front of the game: a browser tab first installs the app,
- * the installed app then asks for an account. The Android app and automated runs
- * are never gated; development opts in with `?gate` (or `?gate=login`).
+ * the installed app (including native Android) then asks for an account.
+ * Automated runs are never gated; development opts in with `?gate` (or `?gate=login`).
  */
 export function initPlayGate(hooks: { canInterrupt(): boolean; onOpenChange(open: boolean): void }) {
   const params = new URLSearchParams(location.search);

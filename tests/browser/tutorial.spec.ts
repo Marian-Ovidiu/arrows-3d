@@ -29,7 +29,7 @@ async function cubePoint(page: Page, id: string) {
   await page.locator('#view').click();
   // Let residual orbit damping settle before projecting the known home view.
   await page.waitForTimeout(350);
-  const box = (await page.locator('canvas').boundingBox())!;
+  const box = (await page.locator('#puzzle-frame').boundingBox())!;
   const camera = new PerspectiveCamera(34, box.width / box.height, .1, 80);
   camera.position.copy(new Vector3(1.05, .8, 1.3).normalize().multiplyScalar(8.8 * Math.max(1, 1 / camera.aspect)));
   camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
@@ -163,9 +163,9 @@ test('guide and controls remain usable on narrow phones, desktop and landscape',
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const guide = (await page.locator('#tutorial-card').boundingBox())!;
-    const canvas = (await page.locator('canvas').boundingBox())!;
-    const noOverlap = guide.y + guide.height <= canvas.y || canvas.x + canvas.width <= guide.x;
-    expect(noOverlap, `${name}: guide covers canvas`).toBe(true);
+    const puzzle = (await page.locator('#puzzle-frame').boundingBox())!;
+    const noOverlap = guide.y + guide.height <= puzzle.y || puzzle.x + puzzle.width <= guide.x;
+    expect(noOverlap, `${name}: guide covers puzzle`).toBe(true);
     await expectCompactUi(page);
     await expectProgress(page, 0, 4);
     await expectTouchTargets(page);

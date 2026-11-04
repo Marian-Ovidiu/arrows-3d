@@ -4,11 +4,24 @@ import { gateStep, installHelp, type GateContext } from '../src/play-gate.ts';
 
 const base: GateContext = { enforced: true, native: false, standalone: true, configured: true, checking: false, signedIn: false, reachable: true, guestForNow: false };
 
-test('a browser tab must install first; development, tests and the Android app play directly', () => {
+test('a browser tab must install first; development and tests play directly', () => {
   assert.equal(gateStep({ ...base, standalone: false }), 'install');
   assert.equal(gateStep({ ...base, standalone: false, signedIn: true }), 'install');
   assert.equal(gateStep({ ...base, standalone: false, enforced: false }), null);
-  assert.equal(gateStep({ ...base, standalone: false, native: true }), null);
+  assert.equal(gateStep({ ...base, standalone: false, native: true, enforced: false }), null);
+});
+
+test('native Android skips installation and follows the installed PWA account gate', () => {
+  const native = { ...base, native: true, standalone: false };
+  assert.equal(gateStep(native), 'login');
+  assert.equal(gateStep({ ...native, checking: true }), 'checking');
+  assert.equal(gateStep({ ...native, checking: true, reachable: false }), 'checking');
+  assert.equal(gateStep({ ...native, signedIn: true }), null);
+  assert.equal(gateStep({ ...native, configured: false }), null);
+  assert.equal(gateStep({ ...native, reachable: false }), 'offline');
+  assert.equal(gateStep({ ...native, reachable: false, guestForNow: true }), null);
+  // Returning online requires sign-in again after the offline guest fallback.
+  assert.equal(gateStep({ ...native, guestForNow: true }), 'login');
 });
 
 test('the installed app asks for sign-in, and falls back to guest play when the service is out of reach', () => {
